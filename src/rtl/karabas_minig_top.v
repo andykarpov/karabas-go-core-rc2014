@@ -301,6 +301,16 @@ wire mem_rd, mem_wr;
 wire [7:0] mem_wdata, mem_rdata;
 wire term_tx, term_rx;     // the terminal side of the line
 wire term_rts;             // the terminal: 1 = wait (its receive silo is filling up)
+wire host_rx, term_xoff;   // the terminal line after rc2014_xonxoff: XOFF / XON taken out
+wire [7:0] xoff_count;
+rc2014_xonxoff xonxoff (
+	.clk(clk_50),
+	.reset(areset),
+	.term_tx(term_tx),
+	.host_rx(host_rx),
+	.xoff(term_xoff),
+	.xoff_count(xoff_count)
+);
 wire [15:0] cpu_a;
 wire [7:0] mach_dbg;
 
@@ -316,8 +326,8 @@ rc2014_machine machine (
 	.mem_wdata(mem_wdata),
 	.mem_rdata(mem_rdata),
 	.tx_a(term_rx),
-	.rx_a(term_tx),
-	.hold_a(term_rts),
+	.rx_a(host_rx),
+	.hold_a(term_rts || term_xoff),
 	.tx_b(),
 	.rx_b(1'b1),
 	.cpu_a(cpu_a),
@@ -479,9 +489,9 @@ hdmi_tx #(.SAMPLE_FREQ(48000)) hdmi (
 
 // ------------------------------------------------------------------ debug
 
-// DEBUG_ADDR: the address of the Z80; DEBUG_DATA: { loading, reset, profile, serial, turbo, machine dbg }
+// DEBUG_ADDR: the address of the Z80; DEBUG_DATA: { loading, reset, profile, serial, turbo, xoff, rts, XOFF count }
 assign dbg_addr = cpu_a;
 always @(posedge clk_50)
-	dbg_data <= { loading, machine_reset, profile, serial, sw_turbo, 2'b00, mach_dbg };
+	dbg_data <= { loading, machine_reset, profile, serial, sw_turbo, term_xoff, term_rts, xoff_count };
 
 endmodule
