@@ -45,7 +45,8 @@ module rc2014_sio (
 	output wire tx_b,
 	input wire rx_b,
 	output wire rts_a,
-	output wire rts_b
+	output wire rts_b,
+	input wire hold_a        // the receiver of line A asks to wait (RTS of the terminal): no new frame starts
 );
 
 wire [1:0] ch_int;
@@ -83,14 +84,14 @@ rc2014_sio_ch #(.CHAN_B(0)) cha (
 	.clk(clk), .reset(reset), .ce(ce),
 	.sel(!a[1]), .data(a[0]), .rd_stb(rd_stb), .wr_stb(wr_stb), .din(din), .dout(ch_dout[0]),
 	.int_any(|ch_int), .vector(vector), .irq(ch_int[0]), .cause(ch_cause[0]),
-	.wr2(), .wr1_sav(), .tx(tx_a), .rx(rx_a), .rts(rts_a)
+	.wr2(), .wr1_sav(), .tx(tx_a), .rx(rx_a), .rts(rts_a), .hold(hold_a)
 );
 
 rc2014_sio_ch #(.CHAN_B(1)) chb (
 	.clk(clk), .reset(reset), .ce(ce),
 	.sel(a[1]), .data(a[0]), .rd_stb(rd_stb), .wr_stb(wr_stb), .din(din), .dout(ch_dout[1]),
 	.int_any(|ch_int), .vector(vector), .irq(ch_int[1]), .cause(ch_cause[1]),
-	.wr2(wr2_b), .wr1_sav(wr1_sav_b), .tx(tx_b), .rx(rx_b), .rts(rts_b)
+	.wr2(wr2_b), .wr1_sav(wr1_sav_b), .tx(tx_b), .rx(rx_b), .rts(rts_b), .hold(1'b0)
 );
 
 endmodule
@@ -118,7 +119,8 @@ module rc2014_sio_ch #(
 
 	output wire tx,
 	input wire rx,
-	output wire rts
+	output wire rts,
+	input wire hold
 );
 
 reg [2:0] ptr = 3'd0;
@@ -216,7 +218,7 @@ always @(posedge clk) begin
 	else begin
 		// Tx: buffer -> shift register; the buffer going empty sets Tx int pending (not when it
 		// was empty already)
-		if (!tbe && !tx_busy && !tx_load && tx_en) begin
+		if (!tbe && !tx_busy && !tx_load && tx_en && !hold) begin
 			tx_load <= 1'b1;
 			tbe <= 1'b1;
 			if (tx_armed) tx_ip <= 1'b1;

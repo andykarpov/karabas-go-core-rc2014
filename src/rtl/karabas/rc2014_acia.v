@@ -33,7 +33,8 @@ module rc2014_acia (
 	output wire irq,
 
 	output wire tx,
-	input wire rx
+	input wire rx,
+	input wire hold          // the receiver asks to wait (RTS of the terminal): no new frame starts
 );
 
 reg [7:0] cr = 8'h03;
@@ -81,7 +82,7 @@ always @(posedge clk) begin
 	end
 	else begin
 		// transmit: TDR -> shift register when it is free
-		if (!tdre && !tx_busy && !tx_load && !mreset) begin
+		if (!tdre && !tx_busy && !tx_load && !mreset && !hold) begin
 			tx_load <= 1'b1;
 			tdre <= 1'b1;
 		end

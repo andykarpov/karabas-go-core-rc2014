@@ -39,6 +39,7 @@ entity vt100_top is
 
       tx : out std_logic;
       rx : in std_logic;
+      rts : out std_logic;    -- karabas: 1 = stop sending (the receive silo of kl11 has more than 11 bytes)
       resetbtn : in std_logic
    );
 end vt100_top;
@@ -110,6 +111,7 @@ begin
 
       rx => rx,
       tx => tx,
+      rts => rts,
 		bps => 115200,
 		-- karabas: the 16 byte receive silo of kl11 (rtscts 1; CTS is not used by kl11): without
 		-- it the receiver shifts the bits straight into the buffer the PDP-11 reads, and a frame

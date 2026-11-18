@@ -54,6 +54,7 @@ module rc2014_machine (
 
 	output wire tx_a,            // the terminal line
 	input wire rx_a,
+	input wire hold_a,           // the terminal asks to wait (its RTS): the ACIA / SIO A start no new frame
 	output wire tx_b,            // the second channel of the SIO/2
 	input wire rx_b,
 
@@ -115,6 +116,10 @@ always @(posedge clk)
 	if (io_rd) io_a <= a[7:0];
 
 wire use_acia = profile == P_MINI || serial;
+
+reg [1:0] hold_s = 2'b00;
+always @(posedge clk)
+	hold_s <= { hold_s[0], hold_a };
 
 // ---------------------------------------------------------------- memory cards
 
@@ -179,14 +184,14 @@ rc2014_acia acia (
 	.clk(clk), .reset(reset || !use_acia), .ce(ser_ce),
 	.a0(rd_end ? io_a[0] : a[0]), .rd_stb(rd_end && acia_rd_sel), .wr_stb(wr_stb && acia_sel),
 	.din(dout), .dout(acia_do), .irq(acia_irq),
-	.tx(acia_tx), .rx(rx_a)
+	.tx(acia_tx), .rx(rx_a), .hold(hold_s[1])
 );
 
 rc2014_sio sio (
 	.clk(clk), .reset(reset || use_acia), .ce(ser_ce),
 	.a(rd_end ? io_a[1:0] : a[1:0]), .rd_stb(rd_end && sio_rd_sel), .wr_stb(wr_stb && sio_sel),
 	.din(dout), .dout(sio_do), .int_n(sio_int_n), .vector(sio_vector),
-	.tx_a(sio_tx_a), .rx_a(use_acia ? 1'b1 : rx_a), .tx_b(tx_b), .rx_b(rx_b), .rts_a(), .rts_b()
+	.tx_a(sio_tx_a), .rx_a(use_acia ? 1'b1 : rx_a), .tx_b(tx_b), .rx_b(rx_b), .rts_a(), .rts_b(), .hold_a(hold_s[1])
 );
 
 assign tx_a = use_acia ? acia_tx : sio_tx_a;

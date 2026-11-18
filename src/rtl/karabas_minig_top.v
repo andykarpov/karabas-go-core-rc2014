@@ -300,6 +300,7 @@ wire [21:0] mem_a;
 wire mem_rd, mem_wr;
 wire [7:0] mem_wdata, mem_rdata;
 wire term_tx, term_rx;     // the terminal side of the line
+wire term_rts;             // the terminal: 1 = wait (its receive silo is filling up)
 wire [15:0] cpu_a;
 wire [7:0] mach_dbg;
 
@@ -316,6 +317,7 @@ rc2014_machine machine (
 	.mem_rdata(mem_rdata),
 	.tx_a(term_rx),
 	.rx_a(term_tx),
+	.hold_a(term_rts),
 	.tx_b(),
 	.rx_b(1'b1),
 	.cpu_a(cpu_a),
@@ -358,6 +360,7 @@ vt100_top terminal (
 	.resetbtn(~areset),
 	.tx(term_tx),
 	.rx(term_rx),
+	.rts(term_rts),
 	.vgao(vt_o),
 	.vgah(vt_hs),
 	.vgav(vt_vs),

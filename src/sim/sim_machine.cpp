@@ -69,6 +69,7 @@ int main(int argc, char **argv) {
 	m->serial = serial;
 	m->turbo = turbo;
 	m->rx_a = 1;
+	m->hold_a = 0;
 	m->rx_b = 1;
 	m->reset = 1;
 	m->clk = 0;
