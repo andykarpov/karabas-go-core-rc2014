@@ -131,7 +131,7 @@ TMS9918A (вывод на HDMI вместо терминала по пункту
 
 ## OSD (набросок, показать пользователю до мержа Ф1)
 
-Ф1 (core.json): Profile (RomWBW 512K / Classic / Mini), Serial (SIO/2 / ACIA; Mini всегда ACIA), CPU (7.37 / 14.75 MHz), Colour (Amber / Green / White, как у pdp2026), Reset (Menu+F12). Потом: Console (Terminal / TMS9918, Ф3), CF image (Ф2).
+Ф1 (core.json, одобрено пользователем 2026-11-19): Profile (RomWBW 512K / Classic / Mini), Serial (SIO/2 / ACIA; Mini всегда ACIA), CPU (7.37 / 14.75 MHz), Colour (Amber / Green / White, как у pdp2026), Reset (Menu+F12). Потом: Console (Terminal / TMS9918, Ф3), CF image (Ф2).
 
 ## Беклог
 
