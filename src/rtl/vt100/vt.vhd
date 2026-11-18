@@ -514,6 +514,7 @@ begin
 
       tx => tx,
       rx => rx,
+      rts => rts,                                    -- karabas: was left open (vt10x rts undriven)
       cts => '0',
       have_kl11 => 1,
       have_kl11_bps => bps,
