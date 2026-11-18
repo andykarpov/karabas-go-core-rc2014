@@ -83,3 +83,7 @@ src/measure/*.log
 !src/measure/*.prj
 !src/measure/*.xst
 src/xst_*/
+src/xst_*/
+src/measure/*.log
+!src/measure/*.prj
+!src/measure/*.xst
