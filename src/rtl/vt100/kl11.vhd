@@ -500,7 +500,10 @@ begin
 --                  rxf <= '1';
                end if;
 
-               if cdc <= clkdiv-1 then
+               -- karabas: < instead of <=: the period of a sample is clkdiv clocks (0..clkdiv-1), as the table
+               -- of clkdiv is made for (50 MHz / 14 / 115200 = 31); with <= it was clkdiv + 1 (115200 ->
+               -- 111607 bps, 3 % slow): back-to-back frames of an exact 115200 sender lost the frame sync
+               if cdc < clkdiv-1 then
                   cdc <= cdc + 1;
                   cdctrigger <= 0;
                else

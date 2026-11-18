@@ -8,6 +8,7 @@
 //   --rom ADDR:FILE    load FILE into the SRAM at ADDR (repeat)
 //   --ms N             simulated time (ms)
 //   --key MS:TEXT      type TEXT from MS on (\r = CR, one character every 2 ms; repeat)
+//   --mem-lat N        clocks from mem_a to mem_rdata (1 = rc2014_mem with a 0 ns SRAM; the board: 2)
 //   --trace-io         print every I/O access (port, data) to stderr
 //   --fill-random      the SRAM random before the ROMs are loaded (as after power on; give it first)
 #include "Vrc2014_machine.h"
@@ -26,7 +27,7 @@ struct Key { double ms; std::string text; };
 
 int main(int argc, char **argv) {
 	Verilated::commandArgs(argc, argv);
-	int profile = 0, serial = 0, turbo = 0, trace_io = 0;
+	int profile = 0, serial = 0, turbo = 0, trace_io = 0, mem_lat = 1;
 	double ms = 100;
 	std::vector<Key> keys;
 	static uint8_t mem[1 << 22];
@@ -39,6 +40,7 @@ int main(int argc, char **argv) {
 		else if (a == "--turbo") turbo = 1;
 		else if (a == "--ms") ms = atof(next().c_str());
 		else if (a == "--trace-io") trace_io = 1;
+		else if (a == "--mem-lat") mem_lat = atoi(next().c_str());
 		else if (a == "--fill-random") { unsigned x = 12345; for (size_t k = 0; k < sizeof mem; k++) { x = x * 1103515245u + 12345u; mem[k] = x >> 16; } }
 		else if (a == "--rom") {
 			std::string v = next();
@@ -92,7 +94,10 @@ int main(int argc, char **argv) {
 		m->clk = 1;
 		m->eval();
 		// the SRAM: read data registered (as rc2014_mem), writes while mem_wr
-		rdata = mem[m->mem_a & 0x3FFFFF];
+		static uint8_t pipe[8] = { 0xFF };
+		for (int k = 7; k > 0; k--) pipe[k] = pipe[k - 1];
+		pipe[0] = mem[m->mem_a & 0x3FFFFF];
+		rdata = pipe[mem_lat - 1];
 		if (m->mem_wr) mem[m->mem_a & 0x3FFFFF] = m->mem_wdata;
 
 		// tx_a -> stdout
