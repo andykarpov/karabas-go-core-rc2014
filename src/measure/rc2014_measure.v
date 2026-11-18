@@ -11,7 +11,7 @@
  - vdp18 TMS9918A at 98 / 99 with its 16K VRAM in block RAM;
  - jt49 YM2149 at D8 (register select) / D0 (data);
  - hdf_ata (modules) as the CF card at 10-17 (8-bit bus, upper byte unused);
- - vt_term (the pdp2011 vt10x VT100 terminal) on a serial line of the measure ports;
+ - vt100_top (the pdp2011 vt10x VT100 terminal, the tsybulin/karabas-go-core-pdp2026 version) on a serial line of the measure ports;
  - the ACIA / SIO/2 / CTC / DS1302 / 8242 are not written yet: estimated in PLAN.md.
 */
 
@@ -58,6 +58,7 @@ module rc2014_measure (
 	output wire vt_tx,
 	input wire ps2_c,
 	input wire ps2_d,
+	input wire [7:0] kbd_code,
 
 	// SD image (CF)
 	input wire [1:0] img_mounted,
@@ -175,9 +176,10 @@ assign io_rd = io_r;
 assign cpu_do = dout;
 
 // VT100 terminal
-vt_term vt (
-	.cpuclk(clk10), .clk50mhz(clk50), .reset(~reset_n), .rx(vt_rx), .tx(vt_tx), .ps2k_c(ps2_c), .ps2k_d(ps2_d),
-	.vga_hsync(vt_hs), .vga_vsync(vt_vs), .vga_fb(vt_fb), .vga_ht(vt_ht), .vga_blank(vt_blank), .vtbell()
+vt100_top vt (
+	.clkin(clk50), .c0(clk10), .resetbtn(reset_n), .tx(vt_tx), .rx(vt_rx),
+	.vgao(vt_fb), .vgah(vt_hs), .vgav(vt_vs), .vgaclk(), .vga_blank(vt_blank),
+	.ps2k_upd(ps2_c), .ps2k_dat(kbd_code), .audio(vt_ht)
 );
 
 endmodule
