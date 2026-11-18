@@ -40,7 +40,10 @@ XC6SLX25: 15 032 LUT6, 30 064 FF, 52 RAMB16. SRAM 4 МБ, SDRAM 32 МБ. Вхо�
 
 - [x] Карта портов и памяти из исходников RomWBW (cb887a1, 2026-11-17, `Source/HBIOS/cfg_RCZ80.asm`, драйверы). Таблица ниже.
 - [x] Набор ROM для трёх профилей (RC2014Z80/RC2014 6eea458, `ROMs/Factory`), лицензии ниже. Образы CF — в Ф2.
-- [ ] Сборка EmulatorKit `rc2014` (etchedpixels b145b90): нужен пакет `libsdl2-dev` (его нет в системе, `ps2event_noui.c` включает `SDL2/SDL.h`); затем прогон каждого ROM, эталонные трассы / экраны.
+- [x] Эталон EmulatorKit `rc2014` (etchedpixels b145b90 + `src/tools/emulatorkit-fp.patch`): `src/tools/emu_ref.sh <рабочий каталог>` собирает его, скачивает ROM / RomWBW 3.6 и пишет вывод консоли в `src/sim/ref/*.txt`. Прогоны 2026-11-18: **mini** — «Z80 BASIC Ver 4.7b … 32382 Bytes free», `PRINT 2+2` = 4; **classic** — SCM 1.0.0 на SIO/2, справка `?`; **romwbw_rom** — HBIOS 3.6.0 (Z2 MMU, 512K / 512K, ACIA, DS1302), загрузчик, `c` → CP/M 2.2, `dir b:` (ROM-диск); **romwbw_cf** — CF «ATA 8-BIT LBA 504MB» (образ `hd1k_combo.img`), загрузка с юнита 2, CP/M 2.2, `dir` A:.
+  - Порт 00 (переключатели передней панели) в эмуляторе читается как 0x78 (SEC + AUTO + DISK + FLOP) — RomWBW уводит консоль на второй порт. Патч: значение из `RC_FP`, в ядре там 00 (позже — пункт OSD).
+  - RomWBW на SIO/2 в эмуляторе при вводе печатает «+++ BAD INT» (эмулятор держит прерывание SIO до RETI в IM1): эталоны RomWBW сняты на ACIA, SIO проверим своей симуляцией.
+  - Эмулятор идёт в реальном времени и теряет символы, если слать их быстро: ввод по 0,3 с на символ.
 - [x] XST на xc6slx25 (`make measure-all`, `make measure-vt`): цифры ниже.
 
 #### Порты (RomWBW `RCZ80`, модули RC2014)

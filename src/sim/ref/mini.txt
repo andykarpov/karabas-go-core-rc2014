@@ -1,0 +1,11 @@
+Z80 SBC By Grant Searle
+
+Memory top? 
+Z80 BASIC Ver 4.7b
+Copyright (C) 1978 by Microsoft
+32382 Bytes free
+Ok
+
+PRINT 2+2
+ 4 
+Ok

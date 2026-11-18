@@ -1,0 +1,20 @@
+
+Small Computer Monitor - RC2014
+*?
+Small Computer Monitor by Stephen C Cousins (www.scc.me.uk)
+Version 1.0.0 configuration R4 for Z80 based RC2014 systems
+
+Monitor commands:
+A [<address>]  = Assemble        |  D [<address>]   = Disassemble
+M [<address>]  = Memory display  |  E [<address>]   = Edit memory
+R [<name>]     = Registers/edit  |  F [<name>]      = Flags/edit
+B [<address>]  = Breakpoint      |  S [<address>]   = Single step
+I <port>       = Input from port |  O <port> <data> = Output to port
+G [<address>]  = Go to program
+BAUD <device> <rate>             |  CONSOLE <device>
+FILL <start> <end> <byte>        |  API <function> [<A>] [<DE>]
+DEVICES, DIR, HELP, RESET
+BASIC    Grant Searle's adaptation of Microsoft BASIC
+WBASIC   Warm start BASIC (retains BASIC program)
+CPM      Load CP/M from Compact Flash (requires prepared CF card)
+*
