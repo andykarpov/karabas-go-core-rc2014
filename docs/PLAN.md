@@ -101,7 +101,7 @@ XC6SLX25: 15 032 LUT6, 30 064 FF, 52 RAMB16. SRAM 4 МБ, SDRAM 32 МБ. Вхо�
 - `rc2014_mem.v` (SRAM, загрузчик ROM), `rc2014_clocks.v` (один PLL: 50 / 25 / 125 / 10 / 8,3 МГц), `karabas_minig_top.v`.
 - Терминал tsybulin: 640×480 60 Гц (его развёртка, пиксель 25 МГц), монохромный, цвет из OSD; звонок терминала → PCM5102 и HDMI.
 - ROM: `tools/rc2014_roms.sh` → `roms/kg/{romwbw,classic,mini}.rom`.
-- Симуляция `sim/run_machine.sh` (Verilator, T80s через `ghdl --synth`, `sim/sim_machine.cpp`: SRAM, линия 115200 в обе стороны, `--key`): **mini** — «Z80 BASIC Ver 4.7b … 32382 Bytes free», `PRINT 2+2` = 4 (как эталон); **classic** на SIO/2 — SCM 1.0.0, `?` выводит справку (как эталон; SCM сначала ~190 мс гоняет огни на порту 00); **RomWBW** на SIO/2 — HBIOS 3.6.0, «Z80 @ 7.372MHz … Z2 MMU, 512KB ROM, 512KB RAM», ROM VERIFY. Скорость модели ~20 мс модельного времени в секунду.
+- Симуляция `sim/run_machine.sh` (Verilator, T80s через `ghdl --synth`, `sim/sim_machine.cpp`: SRAM, линия 115200 в обе стороны, `--key`): **mini** — «Z80 BASIC Ver 4.7b … 32382 Bytes free», `PRINT 2+2` = 4 (как эталон); **classic** на SIO/2 — SCM 1.0.0, `?` выводит справку (как эталон; SCM сначала ~190 мс гоняет огни на порту 00); **RomWBW** на SIO/2 (IM1, прерывания SIO) — HBIOS 3.6.0, «Z80 @ 7.372MHz … Z2 MMU, 512KB ROM, 512KB RAM», SIO0 / SIO1 115200, загрузчик, `c` → «CP/M-80 v2.2, 54.0K TPA» за 4,5 с модели (~3 мин), без «BAD INT» эмулятора; DSRTC пока NOT PRESENT (Ф2). Скорость модели ~20 мс модельного времени в секунду.
 
 ### Ф2 — накопители и время (ветка f2-storage)
 
