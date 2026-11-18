@@ -8,8 +8,8 @@
  images of the .kg (link v2 LOAD kind 0, ld_*), as bbc_mem of core-bbc.
 
  The machine bus is registered in rc2014_machine and goes to the pins through one level of logic;
- the read data is registered here (mem_rdata, one clock after the pins): the Z80 takes it many
- clocks later. While a LOAD of kind 0 is open (loading) the top holds the machine in reset and each
+ the read data is registered here (mem_rdata, one clock after the pins). The SRAM is read whenever
+ it is not written (mem_rd is not needed), see rd below. While a LOAD of kind 0 is open (loading) the top holds the machine in reset and each
  LD_WR byte is written in 3 clocks (address and data out, /WE low, /WE high).
 */
 module rc2014_mem (
@@ -54,7 +54,11 @@ end
 
 wire [21:0] a = loading ? l_addr : mem_a;
 wire lane = a[0];
-wire rd = !loading && mem_rd;
+// the SRAM is read all the time it is not written (OE low): the data follows the address from T1 on,
+// as the Z80 address is out a whole Z80 clock before MREQ / RD. Gated by MREQ & RD (one clk_50 after
+// them) the SRAM answered too late for the T2 latch of T80 at 14.7456 MHz (3-4 clocks of clk_50
+// from MREQ to the latch, the board path pin -> SRAM -> pin -> register takes ~2 of them)
+wire rd = !loading && !mem_wr;
 wire wr = loading ? l_we : mem_wr;
 wire [7:0] wdata = loading ? l_data : mem_wdata;
 
