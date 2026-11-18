@@ -1,0 +1,13 @@
+diff --git a/rc2014.c b/rc2014.c
+index 0bbceb4..f1efb1d 100644
+--- a/rc2014.c
++++ b/rc2014.c
+@@ -2075,7 +2075,7 @@ static uint8_t io_read_2014(uint16_t addr)
+ 	}
+ 	if (trace & TRACE_UNK)
+ 		fprintf(stderr, "Unknown read from port %04X\n", addr);
+-	return 0x78;	/* 78 is what my actual board floats at */
++	return getenv("RC_FP") ? strtol(getenv("RC_FP"), NULL, 0) : 0x78;	/* 78 is what my actual board floats at */
+ }
+ 
+ static uint8_t io_read_2014_x(uint16_t addr)

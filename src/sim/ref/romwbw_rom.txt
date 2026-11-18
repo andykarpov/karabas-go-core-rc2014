@@ -1,0 +1,68 @@
+€Z€Z€Z€Z
+
+RomWBW HBIOS v3.6.0, 2026-03-28
+
+RCBus [RCZ80_std] Z80 @ 7.204MHz
+0 MEM W/S, 1 I/O W/S, INT MODE 1, Z2 MMU
+512KB ROM, 512KB RAM, HEAP=0x285E
+ROM VERIFY: 00 00 00 00 PASS
+
+LCD: IO=0xDA NOT PRESENT
+ACIA0: IO=0x80 ACIA MODE=115200,8,N,1
+DSRTC: MODE=STD IO=0xC0 Wed 2026-11-18 21:32:31 CHARGE=OFF
+MD: UNITS=2 ROMDISK=384KB RAMDISK=256KB
+FD: MODE=RCWDC IO=0x50 NOT PRESENT
+IDE: IO=0x10 MODE=RC
+IDE0: NO MEDIA
+IDE1: NO MEDIA
+PPIDE: IO=0x20 PPI NOT PRESENT
+SD: MODE=PIO IO=0x69 DEVICES=1
+SD0: NO MEDIA
+CH0: IO=0x3E NOT PRESENT
+CH1: IO=0x3C NOT PRESENT
+FP: IO=0x00 SWITCHES=0x00
+
+Unit        Device      Type              Capacity/Mode
+----------  ----------  ----------------  --------------------
+Char 0      ACIA0:      RS-232            115200,8,N,1
+Disk 0      MD0:        RAM Disk          256KB,LBA
+Disk 1      MD1:        ROM Disk          384KB,LBA
+Disk 2      IDE0:       Hard Disk         --
+Disk 3      IDE1:       Hard Disk         --
+Disk 4      SD0:        SD Card           --
+
+RCBus [RCZ80_std] Boot Loader
+FP Switches = 0x00
+
+Boot [H=Help]: c
+
+Loading CP/M 2.2...
+
+CBIOS v3.6.0 [WBW]
+
+Formatting RAMDISK...
+
+Configuring Drives...
+
+  A:=MD0:0
+  B:=MD1:0
+
+  4099 Disk Buffer Bytes Free
+
+CP/M-80 v2.2, 54.0K TPA
+
+B>dir b:
+B: ASM      COM : CLRDIR   COM : COMPARE  COM : COPY     COM
+B: DDT      COM : DDTZ     COM : DUMP     COM : ED       COM
+B: FAT      COM : FDISK80  COM : FILEATTR COM : FILEDATE COM
+B: FLASH    COM : INITDIR  COM : LDDS     COM : LDP2D    COM
+B: LOAD     COM : MBASIC   COM : NULU     COM : PIP      COM
+B: PUTDS    COM : RELOG    COM : STAT     COM : SUBMIT   COM
+B: SUPERSUB COM : TD       COM : UNARC    COM : XSUB     COM
+B: ZAP      COM : ZCAL     COM : ZDE      COM : ZPATH    COM
+B: ZSCONFIG COM : ZXD      COM : ASSIGN   COM : MODE     COM
+B: RTC      COM : SYSCOPY  COM : XM       COM : FDU      COM
+B: FORMAT   COM : SURVEY   COM : SYSGEN   COM : TALK     COM
+B: TIMER    COM : CPUSPD   COM : REBOOT   COM : CPM      SYS
+B: ZSYS     SYS
+B>

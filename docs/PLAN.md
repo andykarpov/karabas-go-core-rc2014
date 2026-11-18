@@ -38,10 +38,57 @@ XC6SLX25: 15 032 LUT6, 30 064 FF, 52 RAMB16. SRAM 4 МБ, SDRAM 32 МБ. Вхо�
 
 ### Ф0 — исследование и замер (ветка f0-measure)
 
-- [ ] Карта портов и памяти из исходников RomWBW 3.6 (`Source/HBIOS/Config/RCZ80_*.asm`, `cfg_RCZ80.asm`), SCM, NASCOM BASIC: адреса ACIA, SIO, CTC, CF, DS1302, TMS, AY, регистров банков 512K, ROM paging. Записать таблицу сюда.
-- [ ] Набор ROM и образов CF для всех трёх профилей, их лицензии (можно ли класть в `.kg` и в репозиторий).
-- [ ] Сборка EmulatorKit `rc2014`, прогон каждого ROM, эталонные трассы / экраны.
-- [ ] XST на xc6slx25: T80 + vdp18 + jt49 + vt100 + hdf_ata + свои ACIA / SIO / CTC (заглушки), сумма LUT / BRAM.
+- [x] Карта портов и памяти из исходников RomWBW (cb887a1, 2026-11-17, `Source/HBIOS/cfg_RCZ80.asm`, драйверы). Таблица ниже.
+- [x] Набор ROM для трёх профилей (RC2014Z80/RC2014 6eea458, `ROMs/Factory`), лицензии ниже. Образы CF — в Ф2.
+- [x] Эталон EmulatorKit `rc2014` (etchedpixels b145b90 + `src/tools/emulatorkit-fp.patch`): `src/tools/emu_ref.sh <рабочий каталог>` собирает его, скачивает ROM / RomWBW 3.6 и пишет вывод консоли в `src/sim/ref/*.txt`. Прогоны 2026-11-18: **mini** — «Z80 BASIC Ver 4.7b … 32382 Bytes free», `PRINT 2+2` = 4; **classic** — SCM 1.0.0 на SIO/2, справка `?`; **romwbw_rom** — HBIOS 3.6.0 (Z2 MMU, 512K / 512K, ACIA, DS1302), загрузчик, `c` → CP/M 2.2, `dir b:` (ROM-диск); **romwbw_cf** — CF «ATA 8-BIT LBA 504MB» (образ `hd1k_combo.img`), загрузка с юнита 2, CP/M 2.2, `dir` A:.
+  - Порт 00 (переключатели передней панели) в эмуляторе читается как 0x78 (SEC + AUTO + DISK + FLOP) — RomWBW уводит консоль на второй порт. Патч: значение из `RC_FP`, в ядре там 00 (позже — пункт OSD).
+  - RomWBW на SIO/2 в эмуляторе при вводе печатает «+++ BAD INT» (эмулятор держит прерывание SIO до RETI в IM1): эталоны RomWBW сняты на ACIA, SIO проверим своей симуляцией.
+  - Эмулятор идёт в реальном времени и теряет символы, если слать их быстро: ввод по 0,3 с на символ.
+- [x] XST на xc6slx25 (`make measure-all`, `make measure-vt`): цифры ниже.
+
+#### Порты (RomWBW `RCZ80`, модули RC2014)
+
+| Порт | Устройство |
+|---|---|
+| 00 | Digital I/O / front panel LED и кнопки (`FPLED_IO`, `FPSW_IO`) |
+| 0E | статусный LED (`LEDPORT`) |
+| 10-17 | CF (IDE, `IDEMODE_RC`, 8-битный режим) |
+| 20-23 | PPIDE (не берём) |
+| 38 | pageable ROM: запись = ROM выкл. (Classic) |
+| 60 / 64 | 8242 PS/2 клавиатура (`TMSMODE_MSXKBD`) |
+| 78-7B | Z2: страницы 16K для окон 0000 / 4000 / 8000 / C000 (только запись), 0-31 ROM, 32-63 RAM |
+| 7C | Z2: включение страниц (бит 0) |
+| 80-83 | ACIA 68B50 (80 ctl / 81 data) **или** SIO/2 №1 (`SIOMODE_RC`: 80 A ctl, 81 A data, 82 B ctl, 83 B data) |
+| 84-87 | SIO/2 №2 |
+| 88-8B | Z80 CTC |
+| 98 / 99 | TMS9918A (`TMSMODE_MSX`) |
+| C0 | DS1302 (`RTCIO`, bit-bang) |
+| D8 / D0 | YM2149 (`AYMODE_RC2014`: D8 выбор регистра, D0 данные) |
+
+`RCZ80_std` (готовый ROM): 7,3728 МГц, IM1, ACIA и SIO определяет сам, DS1302 вкл., **TMS, AY и CTC выключены**. Для Ф2 / Ф3 собираем свой конфиг `RCZ80_kg` (`CTCENABLE`, `TMSENABLE` + `TMSMODE_MSXKBD`, `AYENABLE`) — сборка RomWBW под Linux, проверить в Ф2.
+
+#### ROM профилей
+
+| Профиль | ROM | Что внутри |
+|---|---|---|
+| Mini | `R0000009.BIN` (64K, банк 0) | MS BASIC 32K для ACIA с 0000, RAM 8000-FFFF |
+| Classic | `24886009.BIN` или `R0881099.BIN` (64K, 8 банков по 8K, выбор A13-A15) | SCM 1.x (банки 88), BASIC SIO / ACIA, CP/M Monitor с CF на 10; pageable ROM (38) + 64K RAM |
+| RomWBW | RomWBW 3.6 `RCZ80_std.rom` (512K, из релиза GitHub) или `ROMs/Factory/RomWBW/RC_*.512k.rom` | HBIOS, CP/M 2.2, ZSDOS, ROM-диск и RAM-диск, BASIC, Forth, монитор |
+
+Лицензии: RomWBW — AGPL-3 (бинарник в `.kg` = отдельная программа рядом с ядром GPL-3, исходники открыты). SCM (Steve Cousins) — свободное распространение. MS BASIC (NASCOM, правка Grant Searle) — «copyright of their respective owners», RC2014 распространяет его сам; кладём в `.kg` как RC2014 (некоммерческий проект, решение пользователя «ROM в .kg»).
+
+#### Замер XST (xc6slx25-2, 2026-11-18)
+
+| Что | LUT | FF | RAMB16 | DSP48 | XST Fmax |
+|---|---|---|---|---|---|
+| Всё вместе (`rc2014_measure`): T80, Z2 512K, vdp18 + VRAM 16K в BRAM, jt49, hdf_ata, vt_term | 7 296 (48 %) | 2 445 | 20 (+1 RAMB8) | 3 | 41,7 МГц |
+| Терминал vt_term отдельно (pdp2011 vt10x: внутри PDP-11 с прошивкой терминала) | 3 272 (21 %) | 946 | 11 | — | 37,0 МГц |
+
+Оценка ядра Mini G: 7,3k + ACIA / SIO/2 / CTC / DS1302 / 8242 (~1,0k, пишем сами) + обвязка платы (`kg_mcu2`, OSD, HDMI, звук, ~2,5k) ≈ **10,8k LUT (72 %)**, ~24 RAMB16. Влезает с запасом. Z80 на 7,37 / 14,74 МГц, терминалу нужно 10 МГц (PDP-11) и 50 МГц (развёртка) — частоты XST подходят.
+
+Терминал — почти половина логики. Если в Ф1 понадобится место или своя развёртка 720×576, то запасной вариант — свой текстовый терминал VT100 (~1k LUT); пока берём готовый vt10x.
+
+Ещё к Ф2: `hdf_ata` — 16-битная шина IDE; RomWBW работает с CF в 8-битном режиме (SET FEATURES 01h), `hdf_ata` эту команду принимает без действия — нужен 8-битный режим данных (обёртка или параметр модуля).
 
 ### Ф1 — Mini G, первый запуск (ветка f1-minig)
 

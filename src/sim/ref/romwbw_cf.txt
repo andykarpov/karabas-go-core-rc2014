@@ -1,0 +1,89 @@
+€Z€Z€Z€Z
+
+RomWBW HBIOS v3.6.0, 2026-03-28
+
+RCBus [RCZ80_std] Z80 @ 7.036MHz
+0 MEM W/S, 1 I/O W/S, INT MODE 1, Z2 MMU
+512KB ROM, 512KB RAM, HEAP=0x285E
+ROM VERIFY: 00 00 00 00 PASS
+
+LCD: IO=0xDA NOT PRESENT
+ACIA0: IO=0x80 ACIA MODE=115200,8,N,1
+DSRTC: MODE=STD IO=0xC0 Wed 2026-11-18 21:33:06 CHARGE=OFF
+MD: UNITS=2 ROMDISK=384KB RAMDISK=256KB
+FD: MODE=RCWDC IO=0x50 NOT PRESENT
+IDE: IO=0x10 MODE=RC
+IDE0: ATA 8-BIT LBA BLOCKS=0x000FC000 SIZE=504MB
+IDE1: NO MEDIA
+PPIDE: IO=0x20 PPI NOT PRESENT
+SD: MODE=PIO IO=0x69 DEVICES=1
+SD0: NO MEDIA
+CH0: IO=0x3E NOT PRESENT
+CH1: IO=0x3C NOT PRESENT
+FP: IO=0x00 SWITCHES=0x00
+
+Unit        Device      Type              Capacity/Mode
+----------  ----------  ----------------  --------------------
+Char 0      ACIA0:      RS-232            115200,8,N,1
+Disk 0      MD0:        RAM Disk          256KB,LBA
+Disk 1      MD1:        ROM Disk          384KB,LBA
+Disk 2      IDE0:       Hard Disk         504MB,LBA
+Disk 3      IDE1:       Hard Disk         --
+Disk 4      SD0:        SD Card           --
+
+RCBus [RCZ80_std] Boot Loader
+FP Switches = 0x00
+
+Boot [H=Help]: 2
+
+Booting Disk Unit 2, Slice 0, Sector 0x00000800...
+
+Volume "CP/M 2.2" [0xD000-0xFE00, entry @ 0xE600]...
+
+CBIOS v3.6.0 [WBW]
+
+Formatting RAMDISK...
+
+Configuring Drives...
+
+  A:=IDE0:0
+  B:=MD0:0
+  C:=MD1:0
+  D:=IDE0:1
+  E:=IDE0:2
+  F:=IDE0:3
+  G:=IDE0:4
+  H:=IDE0:5
+  I:=IDE0:6
+  J:=IDE0:7
+
+  1859 Disk Buffer Bytes Free
+
+CP/M-80 v2.2, 54.0K TPA
+
+A>dir
+A: ASM      COM : DDT      COM : DUMP     COM : ED       COM
+A: HELP     COM : HELP     HLP : LIB      COM : LINK     COM
+A: LOAD     COM : MAC      COM : PIP      COM : RMAC     COM
+A: STAT     COM : SUBMIT   COM : XREF     COM : XSUB     COM
+A: ZSID     COM : README   TXT : ASSIGN   COM : BBCBASIC COM
+A: BBCBASIC TXT : CPUSPD   COM : REBOOT   COM : COPYSL   COM
+A: COPYSL   DOC : FAT      COM : FDU      COM : FDU      DOC
+A: FORMAT   COM : MODE     COM : RTC      COM : SLABEL   COM
+A: SURVEY   COM : SYSCOPY  COM : SYSGEN   COM : TALK     COM
+A: HTALK    COM : TBASIC   COM : TIMER    COM : TUNE     COM
+A: XM       COM : ZMP      COM : ZMP      HLP : ZMP      DOC
+A: ZMP      CFG : ZMP      FON : ZMXFER   OVR : ZMTERM   OVR
+A: ZMINIT   OVR : ZMCONFIG OVR : ZMD      COM : VGMPLAY  COM
+A: VGMINFO  COM : CPM      SYS : ASCIIART BAS : DDTZ     DOC
+A: FLASH    DOC : SUPERSUB DOC : TE       DOC : UNARC    DOC
+A: UNZIP    DOC : ZDE      DOC : CRUNCH28 CFG : CLRDIR   COM
+A: COMPARE  COM : CRUNCH   COM : DDTZ     COM : DOWNLOAD COM
+A: EX       COM : FDISK80  COM : FIND     COM : FLASH    COM
+A: GENHEX   COM : LS       COM : LSWEEP   COM : MBASIC   COM
+A: NULU     COM : PMARC    COM : PMEXT    COM : RMXSUB1  COM
+A: SUPERSUB COM : TDLBASIC COM : TE       COM : UNARC    COM
+A: UNCR     COM : UNZIP    COM : WDATE    COM : XSUB1    COM
+A: ZAP      COM : ZDE      COM : ZDENST   COM : ZMRX     COM
+A: ZMTX     COM : HELLO    ASM : KERCPM22 COM
+A>
