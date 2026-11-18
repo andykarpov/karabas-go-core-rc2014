@@ -111,6 +111,10 @@ begin
       rx => rx,
       tx => tx,
 		bps => 115200,
+		-- karabas: the 16 byte receive silo of kl11 (rtscts 1; CTS is not used by kl11): without
+		-- it the receiver shifts the bits straight into the buffer the PDP-11 reads, and a frame
+		-- right after the previous one (SCM, BASIC at 115200) mixes two characters
+		rtscts => 1,
 
       ps2k_upd => ps2k_upd,
       ps2k_dat => ps2k_dat,
