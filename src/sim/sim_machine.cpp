@@ -9,6 +9,7 @@
 //   --ms N             simulated time (ms)
 //   --key MS:TEXT      type TEXT from MS on (\r = CR, one character every 2 ms; repeat)
 //   --trace-io         print every I/O access (port, data) to stderr
+//   --fill-random      the SRAM random before the ROMs are loaded (as after power on; give it first)
 #include "Vrc2014_machine.h"
 #include "verilated.h"
 #include <cstdio>
@@ -38,6 +39,7 @@ int main(int argc, char **argv) {
 		else if (a == "--turbo") turbo = 1;
 		else if (a == "--ms") ms = atof(next().c_str());
 		else if (a == "--trace-io") trace_io = 1;
+		else if (a == "--fill-random") { unsigned x = 12345; for (size_t k = 0; k < sizeof mem; k++) { x = x * 1103515245u + 12345u; mem[k] = x >> 16; } }
 		else if (a == "--rom") {
 			std::string v = next();
 			size_t c = v.find(':');

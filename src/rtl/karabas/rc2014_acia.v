@@ -14,8 +14,8 @@
    SR (read 80): 0 RDRF, 1 TDRE, 2 /DCD (0: the module ties DCD active), 3 /CTS (0), 4 FE, 5 OVRN,
      6 PE (0), 7 IRQ.
    TDR (write 81), RDR (read 81: clears RDRF, OVRN; FE follows the next character).
- After a master reset (and at power on) the ACIA waits for a CR write without the reset code;
- TDRE is 1.
+ After a master reset (and at power on) the ACIA waits for a CR write without the reset code; the
+ status reads 00 meanwhile, then TDRE is 1.
 
  Bus: rd_stb / wr_stb are one clock each; rd_stb at the END of the CPU read (the read data stays
  valid while the CPU reads), wr_stb with the write data valid.
@@ -48,7 +48,9 @@ wire tie = cr[6:5] == 2'b01;
 wire rie = cr[7];
 assign irq = !mreset && ((rie && (rdrf || ovrn)) || (tie && tdre));
 
-wire [7:0] sr = { irq, 1'b0, ovrn, fe, 1'b0, 1'b0, tdre, rdrf };
+// during a master reset the status reads 0 (TDRE too, as the 6850: RomWBW acia.asm detects the chip
+// by status 00 after CR = 03, then TDRE = 1 after CR = 02)
+wire [7:0] sr = mreset ? 8'h00 : { irq, 1'b0, ovrn, fe, 1'b0, 1'b0, tdre, rdrf };
 assign dout = a0 ? rdr : sr;
 
 wire tx_busy;
