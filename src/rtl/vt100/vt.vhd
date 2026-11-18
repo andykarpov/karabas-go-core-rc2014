@@ -40,8 +40,8 @@ entity vt10x is
       rtscts : in integer range 0 to 1 := 0;                         -- conditional compilation switch for rts and cts signals; also implies to include core that implements a silo buffer
 
 -- ps2 keyboard
-      ps2k_c : in std_logic;                                         -- clock
-      ps2k_d : in std_logic;                                         -- data
+      ps2k_upd : in std_logic;
+      ps2k_dat : in std_logic_vector(7 downto 0);
 
 -- bell
       vtbell : out std_logic;                                        -- BEL
@@ -212,11 +212,12 @@ component ps2 is
       bus_control_dato : in std_logic;
       bus_control_datob : in std_logic;
 
-      ps2k_c : in std_logic;
-      ps2k_d : in std_logic;
+      ps2k_upd : in std_logic;
+      ps2k_dat : in std_logic_vector(7 downto 0);
 
       reset : in std_logic;
-      clk : in std_logic
+      clk : in std_logic;
+		clk50 : in std_logic
    );
 end component;
 
@@ -513,6 +514,7 @@ begin
 
       tx => tx,
       rx => rx,
+      rts => rts,                                    -- karabas: was left open (vt10x rts undriven)
       cts => '0',
       have_kl11 => 1,
       have_kl11_bps => bps,
@@ -668,11 +670,12 @@ begin
       bus_control_dato => bus_control_dato,
       bus_control_datob => bus_control_datob,
 
-      ps2k_c => ps2k_c,
-      ps2k_d => ps2k_d,
+      ps2k_upd => ps2k_upd,
+      ps2k_dat => ps2k_dat,
 
       reset => reset,
-      clk => nclk
+      clk => nclk,
+		clk50 => clk50mhz
    );
 
    nclk <= not cpuclk;

@@ -23,7 +23,7 @@
 | TMS9918A (J.B. Langston) | `vdp18` из core-msx |
 | YM2149 (Ed Brindley) | `jt49` из core-msx |
 | Джойстики | геймпады USB через прошивку |
-| Терминал (Pi Zero / Pico VGA) | RTL терминала VT100 из core-vt100 (pdp2011 vt, Sytse van Slooten, некоммерческая лицензия) |
+| Терминал (Pi Zero / Pico VGA) | терминал VT100 из [tsybulin/karabas-go-core-pdp2026](https://github.com/tsybulin/karabas-go-core-pdp2026) 0f5a071 (pdp2011 vt10x, Sytse van Slooten, некоммерческая лицензия; у tsybulin клавиатура скан-кодами через FIFO `afifo.v` (Gisselquist, GPL-3), окно 640 пикселей, цвета amber / green / white) — решение пользователя 2026-11-18 вместо копии из core-vt100 |
 | Второй последовательный порт | SIO B → `kg_mcu_uart` (мост через MCU), XMODEM с ПК |
 
 Эталон для проверки — эмулятор Alan Cox [EmulatorKit](https://github.com/etchedpixels/emulatorkit) `rc2014`: 512K, ACIA, SIO/2, CTC, CF, DS1302, TMS9918A (без спрайтов). Трассы загрузки и снимки экрана сверяем с ним.
@@ -92,8 +92,28 @@ XC6SLX25: 15 032 LUT6, 30 064 FF, 52 RAMB16. SRAM 4 МБ, SDRAM 32 МБ. Вхо�
 
 ### Ф1 — Mini G, первый запуск (ветка f1-minig)
 
-Верх платы на kg_* (`kg_mcu2`: OSD, клавиатура, загрузка ROM из `.kg` в SRAM), Z80, банки ROM / RAM трёх профилей, ACIA + SIO/2, терминал VT100 на HDMI 720×576p50 (синхросигналы всегда есть), клавиатура USB → терминал → RX последовательного порта. Симуляция загрузки (Verilator / ghdl) против эталона из Ф0.
+Верх платы на kg_* (`kg_mcu2`: OSD, клавиатура, загрузка ROM из `.kg` в SRAM), Z80, банки ROM / RAM трёх профилей, ACIA + SIO/2, терминал VT100 на HDMI (синхросигналы всегда есть), клавиатура USB → терминал → RX последовательного порта. Симуляция загрузки (Verilator / ghdl) против эталона из Ф0.
 Цель: приглашение SCM, `Ok` у BASIC, загрузчик RomWBW и CP/M с ROM-диска.
+
+Сделано (ветка f1-minig):
+- `rtl/karabas/rc2014_machine.v`: T80s, такты Z80 7,3728 / 14,7456 МГц и последовательный такт 7,3728 МГц — фазовые аккумуляторы на 50 МГц; карты памяти профилей (RomWBW: Z2 78-7C; Classic: pageable ROM 38, ROM 16K = банк 2 образа 24886009; Mini: ROM 8K + RAM 32K); порт 00 читается 00, пустые порты FF.
+- `rc2014_acia.v` (MC68B50 80-81), `rc2014_sio.v` (SIO/2 80-83, WR0-WR5, RR0-RR2, FIFO 3, прерывания IM1, вектор IM2 без daisy chain), `rc2014_ser.v` (линия 8N1).
+- `rc2014_mem.v` (SRAM, загрузчик ROM), `rc2014_clocks.v` (один PLL: 50 / 25 / 125 / 10 / 8,3 МГц), `karabas_minig_top.v`.
+- Терминал tsybulin: 640×480 60 Гц (его развёртка, пиксель 25 МГц), монохромный, цвет из OSD; звонок терминала → PCM5102 и HDMI.
+- ROM: `tools/rc2014_roms.sh` → `roms/kg/{romwbw,classic,mini}.rom`.
+- Симуляция `sim/run_machine.sh` (Verilator, T80s через `ghdl --synth`, `sim/sim_machine.cpp`: SRAM, линия 115200 в обе стороны, `--key`): **mini** — «Z80 BASIC Ver 4.7b … 32382 Bytes free», `PRINT 2+2` = 4 (как эталон); **classic** на SIO/2 — SCM 1.0.0, `?` выводит справку (как эталон; SCM сначала ~190 мс гоняет огни на порту 00); **RomWBW** на SIO/2 (IM1, прерывания SIO) — HBIOS 3.6.0, «Z80 @ 7.372MHz … Z2 MMU, 512KB ROM, 512KB RAM», SIO0 / SIO1 115200, загрузчик, `c` → «CP/M-80 v2.2, 54.0K TPA» за 4,5 с модели (~3 мин), без «BAD INT» эмулятора; DSRTC пока NOT PRESENT (Ф2). Скорость модели ~20 мс модельного времени в секунду.
+
+На плате (Mini G, 2026-11-18/19), сборки 26111870-26111877:
+- 26111870: RomWBW на SIO/2 → CP/M с ROM-диска сразу; Classic и Mini — печатный «мусор» в баннерах.
+- Причина: в `kl11.vhd` терминала pdp2026 делитель выборки на 1 длиннее (`cdc <= clkdiv-1`: 115200 → 111607 бод), приёмник терял кадр на символах вплотную; исправлено (`karabas:`), автор pdp2026 извещён пользователем. Включён silo приёмника (`rtscts => 1`), RTS `kl11` выведен из `vt.vhd` (был не подключён).
+- ACIA: статус 00 во время master reset (RomWBW так находит 6850).
+- Турбо 14,75 МГц падал: T80 защёлкивает данные чтения в T2, через такт Z80 после MREQ, а /OE SRAM открывался по MREQ — теперь /OE открыт всегда, кроме записи (`rc2014_mem.v`).
+- На турбо при прокрутке терялись символы: прошивка терминала шлёт XOFF (счётчик в DEBUG_DATA: 8 за три справки SCM), SCM / BASIC его не знают → `rc2014_xonxoff.v` держит передатчики линии терминала по XOFF / RTS и вынимает XON / XOFF из линии к машине (^S / ^Q с клавиатуры тоже ставят вывод на паузу).
+- 26111877: Classic SCM `?` ×3 с прокруткой на 14,75 МГц чисто; RomWBW SIO/2 и ACIA → CP/M, `dir b:`; Mini BASIC (32382 Bytes free, FOR, PRINT); цвета Amber / Green; OSD (кадр показан пользователю).
+
+| Сборка | LUT | Slices | RAMB16 | Время |
+|---|---|---|---|---|
+| 26111877 Mini G | 7 354 (48 %) | 2 671 (71 %) | 13 | всё сходится |
 
 ### Ф2 — накопители и время (ветка f2-storage)
 
@@ -111,7 +131,7 @@ TMS9918A (вывод на HDMI вместо терминала по пункту
 
 ## OSD (набросок, показать пользователю до мержа Ф1)
 
-Profile (RomWBW 512K / Classic / Mini), Console (Terminal / TMS9918, с Ф3), CPU (7.37 / 14.74 MHz), CF image (файл, с Ф2), Reset.
+Ф1 (core.json, одобрено пользователем 2026-11-19): Profile (RomWBW 512K / Classic / Mini), Serial (SIO/2 / ACIA; Mini всегда ACIA), CPU (7.37 / 14.75 MHz), Colour (Amber / Green / White, как у pdp2026), Reset (Menu+F12). Потом: Console (Terminal / TMS9918, Ф3), CF image (Ф2).
 
 ## Беклог
 

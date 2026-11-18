@@ -36,11 +36,12 @@ entity ps2 is
       bus_control_dato : in std_logic;
       bus_control_datob : in std_logic;
 
-      ps2k_c : in std_logic;
-      ps2k_d : in std_logic;
+      ps2k_upd : in std_logic;
+      ps2k_dat : in std_logic_vector(7 downto 0);
 
       reset : in std_logic;
-      clk : in std_logic
+      clk : in std_logic;
+		clk50 : in std_logic
    );
 end ps2;
 
@@ -61,45 +62,31 @@ signal interrupt_state : interrupt_state_type := i_idle;
 
 -- local data
 
-type ps2_scanstate_type is (
-   ps2_scanstate_idle,
-   ps2_scanstate_counting,
-   ps2_scanstate_parity,
-   ps2_scanstate_stop
-);
-signal ps2_scanstate : ps2_scanstate_type := ps2_scanstate_idle;
-
-signal ps2_counter : integer range 7 downto 0;
-
 signal ps2_scancode : std_logic_vector(7 downto 0);
 signal ps2_rxdone : std_logic;
 signal ps2_rxie : std_logic;
 
-constant ps2_cfilter_size : integer := 8;
-subtype ps2_cfilter_t is std_logic_vector(ps2_cfilter_size-1 downto 0);
-signal ps2_cfilter : std_logic_vector(7 downto 0);
-signal ps2_transition : std_logic := '0';
-signal ps2_clk : std_logic;
-
+	signal F_wr    : std_logic := '0' ;
+	signal F_rd    : std_logic := '0' ;
+	signal F_full  : std_logic ;
+	signal F_empty : std_logic ;
+	signal F_dati  : std_logic_vector(7 downto 0) := "00000000" ;
+	signal F_dato  : std_logic_vector(7 downto 0) ;
+	
 begin
 
    base_addr_match <= '1' when base_addr(17 downto 2) = bus_addr(17 downto 2) else '0';
    bus_addr_match <= base_addr_match;
 
-   process(clk, reset)
-   begin
+   process(clk, reset) begin
       if clk = '1' and clk'event then
+			F_rd <= '0' ;
+			
          if reset = '1' then
 
             ps2_rxdone <= '0';
             ps2_rxie <= '0';
-
-            ps2_clk <= '0';
-            ps2_cfilter <= (others => '1');
-
             ps2_scancode <= (others => '0');
-            ps2_scanstate <= ps2_scanstate_idle;
-            ps2_transition <= '0';
 
             br <= '0';
             interrupt_trigger <= '0';
@@ -162,58 +149,51 @@ begin
                   end case;
                end if;
             end if;
+				
+				if F_rd = '1' then
+					ps2_scancode <= ps2k_dat ;
+					ps2_rxdone <= '1';
+				end if ;
+				
+				if F_empty = '0' and ps2_rxdone = '0' then
+					F_rd <= '1' ;
+				end if ;
 
---
--- filter the ps2k_c clock
---
-
-            ps2_cfilter <= ps2_cfilter(ps2_cfilter'high-1 downto 0) & ps2k_c;
-            if ps2_cfilter = ps2_cfilter_t'(others => '1') then
-               ps2_clk <= '1';
-               ps2_transition <= '0';
-            elsif ps2_cfilter = ps2_cfilter_t'(others => '0') then
-               ps2_clk <= '0';
-               if ps2_clk = '1' then
-                  ps2_transition <= '1';
-               else
-                  ps2_transition <= '0';
-               end if;
-            end if;
-
---
--- the idea behind the implementation with the transition trigger, instead of moving this into a process gated by ps2_clk,
--- is that this makes it possible to add a timeout counter if that becomes desirable
---
-
-            if ps2_transition = '1' then
-               case ps2_scanstate is
-                  when ps2_scanstate_idle =>
-                     ps2_scanstate <= ps2_scanstate_counting;
-                     ps2_counter <= 0;
-
-                  when ps2_scanstate_counting =>
-                     ps2_scancode(ps2_counter) <= ps2k_d;
-                     if ps2_counter /= 7 then
-                        ps2_counter <= ps2_counter + 1;
-                     else
-                        ps2_scanstate <= ps2_scanstate_parity;
-                     end if;
-
-                  when ps2_scanstate_parity =>
-                     ps2_scanstate <= ps2_scanstate_stop;
-
-                  when ps2_scanstate_stop =>
-                     ps2_rxdone <= '1';
-                     ps2_scanstate <= ps2_scanstate_idle;
-
-               end case;
-            end if;
-
-         end if;
-      end if;
-
+			end if ;
+		end if;
    end process;
+	
+	KFIFO : entity work.afifo
+	generic map (
+		DSIZE => 8,
+		ASIZE => 4
+	) port map (
+		i_wclk => clk50,
+		i_wrst_n => '1',
+		i_wr => F_wr,
+		i_wdata => F_dati,
+		
+		i_rclk => clk,
+		i_rrst_n => '1',
+		i_rd => F_rd,
+		o_rdata => F_dato,
+		
+		o_wfull => F_full,
+		o_rempty => F_empty
+	) ;
 
+	process (clk50) begin
+		if clk50 = '1' and clk50'event then
+			F_wr <= '0' ;
+			
+			if ps2k_upd = '1' then
+				if F_full = '0' then
+					F_dati <= ps2k_dat ;
+					F_wr <= '1' ;
+				end if ;
+			end if ;
+		end if ;
+	end process ;
 
 end implementation;
 

@@ -1,0 +1,85 @@
+{
+    "id": "rc2014",
+    "name": "RC2014",
+    "build": "26111877",
+    "visible": true,
+    "type": "osd",
+    "order": 41,
+    "eeprom_bank": 255,
+    "rtc_mode": 0,
+    "roms": [
+        {
+            "filename": "roms/kg/romwbw.rom",
+            "address": 0
+        },
+        {
+            "filename": "roms/kg/classic.rom",
+            "address": 1048576
+        },
+        {
+            "filename": "roms/kg/mini.rom",
+            "address": 1114112
+        }
+    ],
+    "boards": {
+        "minig": {
+            "link": 2,
+            "build": "26111877",
+            "bitstream": "karabas_minig.bin"
+        }
+    },
+    "osd": [
+        {
+            "type": "S",
+            "name": "Profile",
+            "options": [
+                "RomWBW 512K",
+                "Classic",
+                "Mini"
+            ],
+            "default": 0,
+            "hotkey": "Menu+P",
+            "index": 0
+        },
+        {
+            "type": "S",
+            "name": "Serial",
+            "options": [
+                "SIO/2",
+                "ACIA"
+            ],
+            "default": 0,
+            "index": 1
+        },
+        {
+            "type": "S",
+            "name": "CPU",
+            "options": [
+                "7.37 MHz",
+                "14.75 MHz"
+            ],
+            "default": 0,
+            "index": 2
+        },
+        {
+            "type": "S",
+            "name": "Colour",
+            "options": [
+                "Amber",
+                "Green",
+                "White"
+            ],
+            "default": 0,
+            "index": 3
+        },
+        {
+            "type": "-"
+        },
+        {
+            "type": "T",
+            "name": "Reset",
+            "hotkey": "Menu+F12",
+            "index": 4
+        }
+    ]
+}
