@@ -1,6 +1,6 @@
 # RC2014 core for Karabas Go / Mini / Mini G
 
-An [RC2014](https://rc2014.co.uk/) modular Z80 computer for the Karabas Go board family (Xilinx Spartan-6 XC6SLX25): the Z80 with the usual RC2014 cards and a built-in VT100 terminal on HDMI. Runs RomWBW (CP/M 2.2, CP/M 3, ZSDOS, BASIC, Forth, games), SCM and NASCOM BASIC.
+An [RC2014](https://rc2014.co.uk/) modular Z80 computer for the Karabas Go board family (Xilinx Spartan-6 XC6SLX25): the Z80 with the usual RC2014 cards and a built-in VT100 terminal on HDMI. Runs RomWBW (CP/M 2.2, CP/M 3, ZSDOS, BASIC, Forth, games), Fuzix, SCM and NASCOM BASIC.
 
 Status: built for Karabas Go, Mini and Mini G (`src/rc2014.kg`, one file for all three); checked on Mini G, Go and Mini have not run on a board yet. The plan and the history are in `docs/PLAN.md` (Russian), a Russian README is `README.ru.md`.
 
@@ -27,6 +27,7 @@ The ROMs are inside `rc2014.kg`: RomWBW 3.6 (our build `RCZ80_kg`: RCZ80_std wit
 - **Console** (OSD, Menu+C): *Terminal* = the built-in VT100 on the serial line (SIO/2 A or ACIA), the USB keyboard goes to the terminal; *TMS9918* = the picture of the TMS9918 and the keyboard on the 8242: RomWBW then starts its console there (the front panel reads SW_CRT). *Colour* sets the colour of the terminal: amber, green or white.
 - **Second serial port**: SIO/2 channel B is the second USB serial port of the board ("Karabas core serial", `/dev/serial/by-id/usb-Karabas_Go_*-if02` on Linux; firmware with two CDC ports). In RomWBW it is SIO1: `I 1` at the boot loader moves the console there, `XM` transfers files.
 - **CF card** (Menu+F1): a disk image (`.img`, `.hdf`) in `/rc2014` on the SD card, for example the RomWBW `hd1k` images (`hd1k_prefix.dat` + slices). *CF source* = *Card* uses the CF card in the slot of the board instead (be careful: the core writes to it like the machine does).
+- **Fuzix**: unpack `src/roms/fuzix/rc2014_fuzix.img.xz` (a 40 MB CF image, Fuzix 0.5 built by `src/tools/rc2014_fuzix.sh`) into `/rc2014`, choose it as *CF card*, type `2` at the RomWBW boot loader, then `hda1` at `bootdev:` and log in as `root`. Its timer is the TMS9918 frame interrupt. With *Console* = *TMS9918* Fuzix runs on the TMS screen with the keyboard (tty1-4), with *Terminal* on the terminal (tty1); tty2 / tty6 is the second USB serial port. Leave it with `shutdown` (or answer the questions of `fsck` at the next boot).
 - **Time**: the DS1302 reads and sets the clock of the board (RomWBW `RTC`, `TIME` in ZSDOS).
 - **Reset**: Menu+F12.
 
@@ -44,6 +45,7 @@ The files written for this core are GPL-3.0 (see [LICENSE](LICENSE)). Imported f
 - the VT100 terminal pdp2011 / vt10x (Sytse van Slooten), in the version of [tsybulin/karabas-go-core-pdp2026](https://github.com/tsybulin/karabas-go-core-pdp2026): **non-commercial use only**;
 - afifo (Dan Gisselquist): GPL-3.0;
 - RomWBW (Wayne Warthen and contributors): AGPL-3.0, a separate program in the `.kg`;
+- Fuzix (Alan Cox and contributors): GPL-2.0, the disk image in `src/roms/fuzix` (sources: the commits in `rc2014_fuzix.txt`);
 - SCM (Steve Cousins), NASCOM BASIC (Microsoft, Grant Searle): as distributed by RC2014.
 
 RC2014 is a trademark of Spencer Owen. This project is not affiliated with RC2014.
