@@ -23,13 +23,26 @@
  terminal change on every other clk_50 edge (its own 25 MHz): registered on clk_50, then on clk_25
  (in phase with clk_50 from the PLL).
 
- Audio: the bell of the terminal to the PCM5102 and HDMI (48 kHz).
+ TMS9918A (Console = TMS9918): its picture through the frame buffer of msx_video (256 x 192 as
+ 512 x 384 in 640 x 480 at 60 Hz, the same timing as the terminal), the keyboard to the 8242 of
+ the machine instead of the terminal, and the front panel port 00 reads 80 (SW_CRT: RomWBW moves
+ its console to the TMS at boot). A change of Console resets the machine.
+
+ USB serial port (kg_mcu2 port 0, the clean CDC "Karabas core serial" of the firmware): channel B
+ of the SIO/2, byte for byte (RomWBW unit SIO1: XM, a second console).
+
+ Joysticks: the two pads of the MCU on the joystick module (ports 01 / 02) and on the YM2149 port A
+ (MSX style).
+
+ Audio: the YM2149 and the bell of the terminal to the PCM5102 and HDMI (48 kHz).
 
  Soft switches (the index of the item in the osd of core.json):
    5 CF source (Image / Card: the CF card of the board)
    0 Profile (RomWBW 512K / Classic / Mini)   1 Serial (SIO/2 / ACIA: Classic and RomWBW; Mini is
-   always ACIA)   2 CPU (7.37 / 14.75 MHz)   3 Colour (Amber / Green / White)   4 Reset
- A change of Profile, Serial or CF source (or the Reset item, or a ROM load) resets the machine.
+   always ACIA)   6 Console (Terminal / TMS9918)   2 CPU (7.37 / 14.75 MHz)
+   3 Colour (Amber / Green / White)   4 Reset
+ A change of Profile, Serial, Console or CF source (or the Reset item, or a ROM load) resets the
+ machine.
 */
 
 module karabas_minig_top (
@@ -233,6 +246,17 @@ wire cf_led;
 wire [7:0] rtc_a, rtc_di, rtc_do;
 wire rtc_cs, rtc_wr_n;
 
+// the USB serial port (port 0) <-> SIO/2 channel B
+wire [31:0] port_out_data;
+wire [3:0] port_out_wr, port_in_full;
+wire ser_rx_ready, ser_tx_wr;
+wire [7:0] ser_tx_data;
+
+// the pads: 1 up, 2 down, 3 left, 4 right, 6 A, 7 B -> { B, A, right, left, down, up }
+wire [15:0] joy_l, joy_r;
+wire [5:0] joy1 = { joy_l[7], joy_l[6], joy_l[4], joy_l[3], joy_l[2], joy_l[1] };
+wire [5:0] joy2 = { joy_r[7], joy_r[6], joy_r[4], joy_r[3], joy_r[2], joy_r[1] };
+
 kg_mcu2 #(
 	.SW_N(8),
 	.CS_FILTER(3),
@@ -243,7 +267,8 @@ kg_mcu2 #(
 	.ENABLE_RTC(1),      // the DS1302 of the machine on the clock of the board (rtc_mode 1)
 	.ENABLE_AUX(1),      // DEBUG_*: the state of the core (AT+KARABAS=debug:1, kg_board.py log)
 	.ENABLE_FT(1),
-	.ENABLE_SD2(0)
+	.ENABLE_SD2(0),
+	.ENABLE_PORTS(4'b0001) // port 0: the USB serial port (SIO/2 channel B)
 ) mcu (
 	.CLK(clk_50),
 	.N_RESET(~areset),
@@ -262,7 +287,7 @@ kg_mcu2 #(
 	.KBD(), .KBD_WR(),
 	.PS2_CODE(ps2_code), .PS2_KIND(ps2_kind), .PS2_WR(ps2_wr),
 	.MS_X(), .MS_Y(), .MS_Z(), .MS_B(), .MS_WR(),
-	.JOY_L(), .JOY_R(), .JOY_WR(),
+	.JOY_L(joy_l), .JOY_R(joy_r), .JOY_WR(),
 	.PS2_CMD(16'h0000), .PS2_CMD_WR(1'b0),
 
 	.LD_KIND(ld_kind), .LD_SLOT(ld_slot), .LD_SIZE(), .LD_EXT(), .LD_START(), .LD_ACTIVE(ld_active), .LD_END(),
@@ -278,8 +303,9 @@ kg_mcu2 #(
 	.SDC_BYTE_ADDR(sdc_byte_addr), .SDC_BYTE_IN_DATA(sdc_byte_in_data),
 	.SDC_BYTE_OUT_DATA(hdf_out_data), .IMG_WP(), .IMG_PHYS_WR(), .IMG_PHYS(), .IMG_FLUSH(), .FDD_CHNG_WR(), .FDD_CHNG(),
 	.FDD_CHNG_REQ(1'b0), .FDD_CHNG_DS(2'd0), .IMG_ACTIVE(),
-	.PORT_OUT_DATA(), .PORT_OUT_WR(), .PORT_OUT_READY(4'b1111), .PORT_IN_DATA(32'd0), .PORT_IN_WR(4'd0),
-	.PORT_CFG(128'd0), .PORT_IN_FULL(), .PORT_STAT(), .PORT_STAT_WR(),
+	.PORT_OUT_DATA(port_out_data), .PORT_OUT_WR(port_out_wr), .PORT_OUT_READY({ 3'b111, ser_rx_ready }),
+	.PORT_IN_DATA({ 24'd0, ser_tx_data }), .PORT_IN_WR({ 3'b000, ser_tx_wr }),
+	.PORT_CFG(128'd0), .PORT_IN_FULL(port_in_full), .PORT_STAT(), .PORT_STAT_WR(),
 	.RTC_A(rtc_a), .RTC_DI(rtc_di), .RTC_CS(rtc_cs), .RTC_WR_N(rtc_wr_n), .MATRIX_CMD(24'd0), .MATRIX_CMD_WR(1'b0),
 	.DEBUG_ADDR(dbg_addr), .DEBUG_DATA(dbg_data), .RTC_DO(rtc_do),
 
@@ -300,6 +326,7 @@ wire sw_turbo = sw[2*8];
 wire [1:0] sw_colour = sw[3*8 +: 2];
 wire sw_reset = sw[4*8];
 wire sw_cf_card = sw[5*8];
+wire sw_tms = sw[6*8];
 
 wire loading;
 
@@ -308,14 +335,16 @@ wire loading;
 reg [1:0] profile = 2'd0;
 reg serial = 1'b0;
 reg cf_card = 1'b0;
+reg tms = 1'b0;
 reg [15:0] rst_cnt = 16'd0;
 reg machine_reset = 1'b1;
 always @(posedge clk_50) begin
-	if (areset || loading || sw_reset || sw_profile != profile || sw_serial != serial || sw_cf_card != cf_card) begin
+	if (areset || loading || sw_reset || sw_profile != profile || sw_serial != serial || sw_cf_card != cf_card || sw_tms != tms) begin
 		rst_cnt <= 16'd0;
 		profile <= sw_profile == 2'd3 ? 2'd0 : sw_profile;
 		serial <= sw_serial;
 		cf_card <= sw_cf_card;
+		tms <= sw_tms;
 	end
 	else if (!rst_cnt[15])
 		rst_cnt <= rst_cnt + 16'd1;
@@ -341,6 +370,9 @@ rc2014_xonxoff xonxoff (
 );
 wire [15:0] cpu_a;
 wire [7:0] mach_dbg;
+wire vdp_ce_pix, vdp_hor_active, vdp_vert_active;
+wire [3:0] vdp_col;
+wire [9:0] psg_sound;
 
 rc2014_machine machine (
 	.clk(clk_50),
@@ -356,8 +388,22 @@ rc2014_machine machine (
 	.tx_a(term_rx),
 	.rx_a(host_rx),
 	.hold_a(term_rts || term_xoff),
-	.tx_b(),
-	.rx_b(1'b1),
+	.rxb_data(port_out_data[7:0]),
+	.rxb_wr(port_out_wr[0]),
+	.rxb_ready(ser_rx_ready),
+	.txb_data(ser_tx_data),
+	.txb_wr(ser_tx_wr),
+	.txb_full(port_in_full[0]),
+	.fp_sw(tms ? 8'h80 : 8'h00),
+	.joy1(joy1),
+	.joy2(joy2),
+	.kbd_code(ps2_code),
+	.kbd_wr(ps2_wr && !ps2_kind && tms),
+	.vdp_ce_pix(vdp_ce_pix),
+	.vdp_hor_active(vdp_hor_active),
+	.vdp_vert_active(vdp_vert_active),
+	.vdp_col(vdp_col),
+	.psg_sound(psg_sound),
 	.img_mounted(sdc_img_mounted[5:4]),
 	.img_size(sdc_img_size),
 	.sdc_rd(hdf_rd),
@@ -432,7 +478,7 @@ vt100_top terminal (
 	.vgav(vt_vs),
 	.vgaclk(),
 	.vga_blank(vt_blank),
-	.ps2k_upd(ps2_wr && !ps2_kind),
+	.ps2k_upd(ps2_wr && !ps2_kind && !tms),
 	.ps2k_dat(ps2_code),
 	.audio(vt_bell)
 );
@@ -449,11 +495,30 @@ always @(posedge clk_25)
 wire [23:0] fg = sw_colour == 2'd0 ? 24'hFFB700 : sw_colour == 2'd1 ? 24'h33FF33 : 24'hFFFFFF;
 reg [23:0] vid_rgb = 24'd0;
 reg vid_hs = 1'b0, vid_vs = 1'b0, vid_de = 1'b0;
+// the TMS9918 picture (its own 640 x 480 counters on clk_25)
+wire [23:0] tms_rgb;
+wire tms_hs, tms_vs, tms_de;
+msx_video tms_video (
+	.clk(clk_50), .ce_pix(vdp_ce_pix), .hor_active(vdp_hor_active), .vert_active(vdp_vert_active), .col(vdp_col),
+	.clk_vga(clk_25), .rgb(tms_rgb), .hs(tms_hs), .vs(tms_vs), .de(tms_de)
+);
+reg tms_p = 1'b0;
+always @(posedge clk_25)
+	tms_p <= tms;
+
 always @(posedge clk_25) begin
-	vid_rgb <= (vt_p[0] && !vt_p[1]) ? fg : 24'd0;
-	vid_hs <= !vt_p[3];     // positive inside, negative to HDMI
-	vid_vs <= !vt_p[2];
-	vid_de <= !vt_p[1];
+	if (tms_p) begin
+		vid_rgb <= tms_rgb;
+		vid_hs <= tms_hs;
+		vid_vs <= tms_vs;
+		vid_de <= tms_de;
+	end
+	else begin
+		vid_rgb <= (vt_p[0] && !vt_p[1]) ? fg : 24'd0;
+		vid_hs <= !vt_p[3];     // positive inside, negative to HDMI
+		vid_vs <= !vt_p[2];
+		vid_de <= !vt_p[1];
+	end
 end
 
 // the bitmap OSD of link v2 (kg_l2_osd_overlay): centred in de, 2 clocks of latency with its syncs and de
@@ -472,8 +537,11 @@ kg_l2_osd_overlay osd (
 
 // ------------------------------------------------------------------ audio
 
-// the bell: a square wave of the terminal, a quarter of full scale
-wire [15:0] audio = vt_bell ? 16'h1000 : 16'hF000;
+// the YM2149 (10 bits unsigned, three channels mixed) around 0 at half of full scale, and the bell
+// of the terminal (a square wave, an eighth of full scale)
+reg [15:0] audio = 16'd0;
+always @(posedge clk_50)
+	audio <= ({ 1'b0, psg_sound, 5'd0 } - 16'h4000) + (vt_bell ? 16'h0800 : 16'hF800);
 
 kg_pcm5102 #(.DIV_BITS(3)) dac (  // bck 3.1 MHz, 97.7 kHz
 	.clk(clk_50),

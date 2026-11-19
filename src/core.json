@@ -74,6 +74,17 @@
         },
         {
             "type": "S",
+            "name": "Console",
+            "options": [
+                "Terminal",
+                "TMS9918"
+            ],
+            "default": 0,
+            "hotkey": "Menu+C",
+            "index": 6
+        },
+        {
+            "type": "S",
             "name": "CPU",
             "options": [
                 "7.37 MHz",

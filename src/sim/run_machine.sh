@@ -8,8 +8,8 @@ SIM=$(pwd)
 SRC=$(cd .. && pwd)
 B=$SIM/build
 mkdir -p $B/v
-VLOG="$SRC/rtl/karabas/rc2014_machine.v $SRC/rtl/karabas/rc2014_ser.v $SRC/rtl/karabas/rc2014_acia.v $SRC/rtl/karabas/rc2014_sio.v $SRC/rtl/karabas/rc2014_cf.v $SRC/rtl/karabas/rc2014_ds1302.v $SRC/../modules/rtl/mcu/hdf_ata.v"
-if [ ! -f $B/vhdl_ghdl.v ] || [ -n "$(find $SRC/rtl/T80 vhdl2v.sh -newer $B/vhdl_ghdl.v 2>/dev/null)" ]; then
+VLOG="$SRC/rtl/karabas/rc2014_machine.v $SRC/rtl/karabas/rc2014_ser.v $SRC/rtl/karabas/rc2014_acia.v $SRC/rtl/karabas/rc2014_sio.v $SRC/rtl/karabas/rc2014_cf.v $SRC/rtl/karabas/rc2014_ds1302.v $SRC/../modules/rtl/mcu/hdf_ata.v $SRC/rtl/karabas/rc2014_kbd8242.v $SRC/../modules/rtl/mem/kg_spram.v $(ls $SRC/rtl/jt49/jt49*.v)"
+if [ ! -f $B/vhdl_ghdl.v ] || [ -n "$(find $SRC/rtl/T80 $SRC/rtl/vdp18 vhdl2v.sh -newer $B/vhdl_ghdl.v 2>/dev/null)" ]; then
 	./vhdl2v.sh $B > $B/ghdl.log 2>&1 || { grep -v -i warning $B/ghdl.log | tail -30; exit 1; }
 fi
 BIN=$B/obj/Vrc2014_machine
