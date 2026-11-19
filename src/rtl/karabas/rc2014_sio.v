@@ -31,9 +31,17 @@
  buffer goes out as txb_data / txb_wr at once unless txb_full (the MCU side has no room). The clock
  mode of WR4 does not matter there.
 
+ RXBUF_A (log2 of the depth, 0 = none): a receive buffer in block RAM in front of the Rx FIFO of
+ line A (the ESP module of the second SIO: Fuzix has no RTS flow control on the SIO and the TMS
+ console runs with the interrupts off longer than three characters). A character of the line goes
+ into the buffer, the buffer gives one to the Rx FIFO while it is not full; a channel reset empties
+ it, a full buffer drops the character.
+
  Bus: rd_stb / wr_stb one clock each, rd_stb at the END of the CPU read.
 */
-module rc2014_sio (
+module rc2014_sio #(
+	parameter RXBUF_A = 0
+) (
 	input wire clk,
 	input wire reset,
 	input wire ce,
@@ -90,7 +98,7 @@ assign int_n = !(|ch_int);
 
 assign dout = a[1] ? ch_dout[1] : ch_dout[0];
 
-rc2014_sio_ch #(.CHAN_B(0)) cha (
+rc2014_sio_ch #(.CHAN_B(0), .RXBUF(RXBUF_A)) cha (
 	.clk(clk), .reset(reset), .ce(ce),
 	.b_data(8'd0), .b_wr(1'b0), .b_ready(), .bt_data(), .bt_wr(), .bt_full(1'b0),
 	.sel(!a[1]), .data(a[0]), .rd_stb(rd_stb), .wr_stb(wr_stb), .din(din), .dout(ch_dout[0]),
@@ -109,7 +117,8 @@ rc2014_sio_ch #(.CHAN_B(1)) chb (
 endmodule
 
 module rc2014_sio_ch #(
-	parameter CHAN_B = 0
+	parameter CHAN_B = 0,
+	parameter RXBUF = 0
 ) (
 	input wire clk,
 	input wire reset,
@@ -185,12 +194,50 @@ assign line_done = 1'b0;
 assign line_data = 8'd0;
 assign line_fe = 1'b0;
 end endgenerate
-wire rx_done = CHAN_B ? b_wr && rx_en : line_done;
-wire rx_fe = CHAN_B ? 1'b0 : line_fe;
-wire [7:0] rx_data = CHAN_B ? b_data : line_data;
 reg [7:0] fifo [0:2];
 reg [2:0] fifo_fe = 3'b000;
 reg [1:0] cnt = 2'd0;
+reg chan_reset = 1'b0;       // the channel reset command (one clock)
+
+// the receive buffer of RXBUF (see the top): one character into the Rx FIFO at a time, the next
+// one after the count of the FIFO has followed (two clocks)
+wire buf_wr;
+wire buf_fe;
+wire [7:0] buf_data;
+generate if (RXBUF > 0) begin : rx_buf
+reg [8:0] bmem [0:(1 << RXBUF) - 1];
+reg [RXBUF-1:0] wp = 0, rp = 0;
+reg [8:0] bq = 9'd0;
+reg bq_wr = 1'b0, bq_wr_q = 1'b0;
+wire bempty = wp == rp;
+wire bfull = wp + 1'd1 == rp;
+always @(posedge clk) begin
+	bq_wr <= 1'b0;
+	bq_wr_q <= bq_wr;
+	if (line_done && !bfull) begin
+		bmem[wp] <= { line_fe, line_data };
+		wp <= wp + 1'd1;
+	end
+	bq <= bmem[rp];
+	if (reset || chan_reset)
+		rp <= wp;
+	else if (!bempty && rx_en && cnt != 2'd3 && !bq_wr && !bq_wr_q) begin
+		rp <= rp + 1'd1;
+		bq_wr <= 1'b1;
+	end
+end
+assign buf_wr = bq_wr;
+assign buf_fe = bq[8];
+assign buf_data = bq[7:0];
+end else begin : no_rx_buf
+assign buf_wr = line_done;
+assign buf_fe = line_fe;
+assign buf_data = line_data;
+end endgenerate
+
+wire rx_done = CHAN_B ? b_wr && rx_en : buf_wr;
+wire rx_fe = CHAN_B ? 1'b0 : buf_fe;
+wire [7:0] rx_data = CHAN_B ? b_data : buf_data;
 reg ovr = 1'b0;              // RR1 bit 5
 reg fe_rr1 = 1'b0;           // RR1 bit 6 (of the character at the top)
 reg rx_first = 1'b1;         // Rx int on first character: armed
@@ -240,6 +287,7 @@ end
 always @(posedge clk) begin
 	tx_load <= 1'b0;
 	bt_wr <= 1'b0;
+	chan_reset <= 1'b0;
 	if (reset) begin
 		ptr <= 3'd0;
 		wr1 <= 8'd0;
@@ -332,6 +380,7 @@ always @(posedge clk) begin
 				ptr <= din[2:0];
 				case (din[5:3])
 					3'b011: begin                // channel reset
+						chan_reset <= 1'b1;
 						wr1 <= 8'd0;
 						wr3 <= 8'd0;
 						wr4 <= 8'd0;
