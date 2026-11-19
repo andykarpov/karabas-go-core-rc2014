@@ -1,7 +1,7 @@
 {
     "id": "rc2014",
     "name": "RC2014",
-    "build": "26111902",
+    "build": "26111903",
     "visible": true,
     "type": "osd",
     "order": 41,
@@ -22,9 +22,19 @@
         }
     ],
     "boards": {
+        "go": {
+            "link": 2,
+            "build": "26111903",
+            "bitstream": "karabas_go.bin"
+        },
+        "mini": {
+            "link": 2,
+            "build": "26111903",
+            "bitstream": "karabas_mini.bin"
+        },
         "minig": {
             "link": 2,
-            "build": "26111902",
+            "build": "26111903",
             "bitstream": "karabas_minig.bin"
         }
     },

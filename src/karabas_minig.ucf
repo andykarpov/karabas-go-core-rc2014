@@ -223,14 +223,11 @@ NET "FLASH_WP_N"       LOC="N12"    | IOSTANDARD = LVCMOS33; # CONF_IO2
 NET "FLASH_HOLD_N"     LOC="P12"    | IOSTANDARD = LVCMOS33; # CONF_IO3
 
 # ------------------------------------------------------------------------------------------------------------
-# Timing constraints (karabas_minig_top.v, bbc_clocks.v):
-#   clk_48 (DCM_CLKGEN 50 * 24 / 25 -> PLL A): the machine, the MCU link, the SRAM, the DAC
-#   clk_27 / clk_135 / clk_135_n / clk_8 (PLL B from 50 MHz, VCO 675 MHz): the doubled picture
-#     720 x 576p50, the OSD, HDMI and its serialiser, FT_CLK_OUT
-# The PERIOD of CLK_50MHZ is derived onto all outputs. clk_48 and clk_27 come from two PLLs (BeebFpga:
-# two asynchronous clocks): the core crosses between them by design (rgb2vga_scandoubler: a dual clock
-# RAM and a synchroniser of the hsync; the OSD bitmap and its settings; the audio held for 1000
-# clocks behind a toggle): no timing between them.
+# Timing constraints (karabas_minig_top.v, rc2014_clocks.v):
+#   one PLL from 50 MHz: clk_50 (the machine, the MCU link, the SRAM, the DAC, the terminal), clk_25
+#   (640 x 480: the TMS frame buffer read side, the OSD, HDMI), clk_125 / clk_125_n (the serialiser),
+#   clk_10 (the PDP-11 of the terminal), clk_8 (FT_CLK_OUT). They are related (one VCO): the paths
+#   between clk_50 and clk_25 are timed as such.
 # ------------------------------------------------------------------------------------------------------------
 NET "CLK_50MHZ" TNM_NET = "CLK_50MHZ";
 TIMESPEC "TS_CLK_50MHZ" = PERIOD "CLK_50MHZ" 20 ns HIGH 50%;
@@ -241,19 +238,15 @@ NET "MCU_SCK" TNM_NET = "TG_CLK_MCU";
 TIMESPEC "TS_CLK_MCU" = PERIOD "TG_CLK_MCU" 32 MHz;
 TIMESPEC "TS_MCU_TO_SYS" = FROM "TG_CLK_MCU" TO "TG_CLK_SYS" 25 ns DATAPATHONLY;
 TIMESPEC "TS_SYS_TO_MCU" = FROM "TG_CLK_SYS" TO "TG_CLK_MCU" 25 ns DATAPATHONLY;
-# The SRAM (bbc_mem, 10 ns): the external bus of the core out of its flip-flops on clk_48 through one
-# level of logic; the core latches the read data at the end of its 6-clock memory slot and its nWE
-# strobe is one clock in the middle of the slot with the address and data steady around it.
+# The SRAM (rc2014_mem, 10 ns): the external bus out of flip-flops on clk_50; the Z80 takes the read
+# data many clocks later, /WE is one clock inside a steady address and data.
 TIMEGRP "TG_SRAM_IN" = PADS("MD<*>");
 TIMEGRP "TG_SRAM_OUT" = "TG_SRAM_IN" PADS("MA<*>") PADS("MWR_N<*>") PADS("MRD_N<*>");
 TIMESPEC "TS_SRAM_OUT" = FROM FFS TO "TG_SRAM_OUT" 15 ns DATAPATHONLY;
 TIMESPEC "TS_SRAM_IN" = FROM "TG_SRAM_IN" TO FFS 15 ns DATAPATHONLY;
-# The SDRAM (bbc_tape_sdram.v, as bk_sdram.v of core-bk): the chip takes commands and write data at the
-# falling edge of clk_48 (its clock is the inverse, an ODDR2), the read data is taken by flip-flops on the
-# falling edge. The pads are IOB registers: these bound what is left of the paths.
-# zhdmi takes its words from clk_27 registers into the x5 clock (the serialiser of hdmi_tx)
+# zhdmi takes its words from clk_25 registers into the x5 clock (the serialiser of hdmi_tx)
 TIMESPEC "TS_PIX_TO_HDMI" = FROM "TG_CLK_PIX" TO "TG_CLK_HDMI" TIG;
-# the reset (kg_sync in clk_48 and clk_27): the locked flags of the PLLs are asynchronous to them
+# the reset (kg_sync in clk_50 and clk_25): the locked flag of the PLL is asynchronous to them
 NET "areset_async" TIG;
 
 # the TMDS serialisers next to the ODDR2 of the pins (top edge), as core-cpc / core-atari2600

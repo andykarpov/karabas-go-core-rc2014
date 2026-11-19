@@ -15,7 +15,7 @@ XIL = source $(ISE_SETTINGS) > /dev/null;
 prj_src = $(shell sed -n 's/^[a-z]* work "\(.*\)"/\1/p' $(1) 2>/dev/null)
 
 PART = xc6slx25-ftg256-2
-BOARDS = minig
+BOARDS = go mini minig
 KG = rc2014.kg
 JSON = core.json
 ROMS = roms/kg/romwbw.rom roms/kg/classic.rom roms/kg/mini.rom
