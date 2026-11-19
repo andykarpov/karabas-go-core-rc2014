@@ -149,7 +149,15 @@ TMS9918A (вывод на HDMI вместо терминала по пункту
 - OSD: Console (Terminal / TMS9918, Menu+C, index 6): TMS — на HDMI картинка TMS, клавиатура в 8242, порт 00 читается 80 (SW_CRT: RomWBW переносит консоль на TMS при загрузке); смена — сброс машины. **Вид OSD показать пользователю.**
 - Свой RomWBW: `roms/romwbw/RCZ80_kg.asm` (RCZ80_std + TMSENABLE, TMSMODE_MSXKBD, TMSTIMENABLE, AY38910ENABLE), `tools/rc2014_romwbw.sh <work dir>` собирает его из исходников 3.6.0. Для сборки нужны пакеты `srecord` и `libncurses-dev` (поставлены пользователем 2026-11-19); `romwbw.rom` в `.kg` теперь наш RCZ80_kg (сборка RomWBW: «TMS: MODE=MSXKBD, IO=152, SCREEN=40X24, KEYBOARD=KBD, INTERRUPTS ENABLED», «AY38910: MODE=RC2014, IO=216, CLOCK=1789772 HZ», «SYSTEM TIMER: TMS»). ROM лежит только в `.kg`: после сборки ROM — `make_core` без новой прошивки ПЛИС. zxcc под Linux прерывает LINK, если stdin не терминал: скрипт подставляет пустой FIFO.
 - Симуляция `sim/run_f3.sh` (тест `sim/tests/f3_test.asm`, uz80as из инструментов RomWBW): VRAM, регистр YM2149, джойстики (порт A, 01, 02), 8242 (самотест 55, скан-коды), 15 кадровых прерываний за 0,25 с, эхо канала B, снимок экрана TMS «HELLO RC2014» — всё сходится.
-- Mini G 26111903: 10 006 LUT (66 %), 87 % slices, 33 RAMB16, тайминги сходятся.
+- Сборка 26111903 всех плат (`rc2014.kg`: go, mini, minig), тайминги сходятся везде:
+
+| Плата | LUT | Slices | RAMB16 |
+|---|---|---|---|
+| Mini G | 10 006 (66 %) | 3 282 (87 %) | 33 |
+| Mini | 10 155 (67 %) | 3 332 (88 %) | 33 |
+| Go | 9 226 (61 %) | 3 239 (86 %) | 33 |
+
+- На плате не проверено (решение пользователя): Ф3 целиком, Go и Mini вообще; новый OSD (Console) показать пользователю. Длинную симуляцию RomWBW с консолью на TMS пользователь не запускать (2026-11-19).
 - Верхние модули Go и Mini: `tools/mktops.py` (как в core-bbc) делает их из Mini G; Go — VGA 640 × 480 с V_CLK = clk_25.
 
 ### Ф4 — Go / Mini и релиз (ветка f4-release)
