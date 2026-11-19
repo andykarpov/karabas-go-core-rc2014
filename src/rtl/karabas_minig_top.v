@@ -211,12 +211,29 @@ wire [4:0] osd_px, osd_ph;
 wire [3:0] osd_py;
 wire [5:0] osd_pw;
 
+// the image files of the mcu (the CF: slot 4 = device 0 of hdf_ata, slot 5 = device 1)
+wire [7:0] sdc_img_mounted, sdc_byte_in_data;
+wire [63:0] sdc_img_size;
+wire sdc_busy, sdc_done, sdc_error, sdc_byte_in_strobe;
+wire [2:0] sdc_slot;
+wire [8:0] sdc_byte_addr;
+wire [1:0] hdf_rd, hdf_wr;
+wire [31:0] hdf_sector;
+wire [7:0] hdf_out_data;
+wire hdf_own = sdc_slot[2:1] == 2'b10;
+wire cf_led;
+
+// the RTC RAM of kg_mcu2 (rtc_mode 1: DS1307 registers, BCD) <-> the DS1302 of the machine
+wire [7:0] rtc_a, rtc_di, rtc_do;
+wire rtc_cs, rtc_wr_n;
+
 kg_mcu2 #(
 	.SW_N(8),
 	.CS_FILTER(3),
 	.CAPS(16'h0000),
 	.ENABLE_OSD(1),
-	.ENABLE_IMG(0),
+	.ENABLE_IMG(1),
+	.IMG_OUT_LATENCY(3), // the address register of kg_l2_img, the buffer RAM of hdf_ata, its output register
 	.ENABLE_AUX(1),      // DEBUG_*: the state of the core (AT+KARABAS=debug:1, kg_board.py log)
 	.ENABLE_FT(1),
 	.ENABLE_SD2(0)
@@ -248,15 +265,16 @@ kg_mcu2 #(
 	.OSD_FG(osd_fg), .OSD_BG(osd_bg), .OSD_ALPHA(osd_alpha), .OSD_PX(osd_px), .OSD_PY(osd_py),
 	.OSD_PW(osd_pw), .OSD_PH(osd_ph), .OSD_PLACE(osd_place), .OSD_ZOOM(osd_zoom),
 
-	.SDC_IMG_MOUNTED(), .SDC_IMG_SIZE(), .SDC_RD(8'd0), .SDC_WR(8'd0),
-	.SDC_SECTOR(32'd0), .SDC_BUSY(), .SDC_DONE(), .SDC_ERROR(), .SDC_SLOT(),
-	.SDC_BYTE_IN_STROBE(), .SDC_BYTE_ADDR(), .SDC_BYTE_IN_DATA(),
-	.SDC_BYTE_OUT_DATA(8'd0), .IMG_WP(), .IMG_PHYS_WR(), .IMG_PHYS(), .IMG_FLUSH(), .FDD_CHNG_WR(), .FDD_CHNG(),
+	.SDC_IMG_MOUNTED(sdc_img_mounted), .SDC_IMG_SIZE(sdc_img_size), .SDC_RD({ 2'b00, hdf_rd, 4'b0000 }),
+	.SDC_WR({ 2'b00, hdf_wr, 4'b0000 }), .SDC_SECTOR(hdf_sector), .SDC_BUSY(sdc_busy), .SDC_DONE(sdc_done),
+	.SDC_ERROR(sdc_error), .SDC_SLOT(sdc_slot), .SDC_BYTE_IN_STROBE(sdc_byte_in_strobe),
+	.SDC_BYTE_ADDR(sdc_byte_addr), .SDC_BYTE_IN_DATA(sdc_byte_in_data),
+	.SDC_BYTE_OUT_DATA(hdf_out_data), .IMG_WP(), .IMG_PHYS_WR(), .IMG_PHYS(), .IMG_FLUSH(), .FDD_CHNG_WR(), .FDD_CHNG(),
 	.FDD_CHNG_REQ(1'b0), .FDD_CHNG_DS(2'd0), .IMG_ACTIVE(),
 	.PORT_OUT_DATA(), .PORT_OUT_WR(), .PORT_OUT_READY(4'b1111), .PORT_IN_DATA(32'd0), .PORT_IN_WR(4'd0),
 	.PORT_CFG(128'd0), .PORT_IN_FULL(), .PORT_STAT(), .PORT_STAT_WR(),
-	.RTC_A(8'd0), .RTC_DI(8'd0), .RTC_CS(1'b0), .RTC_WR_N(1'b1), .MATRIX_CMD(24'd0), .MATRIX_CMD_WR(1'b0),
-	.DEBUG_ADDR(dbg_addr), .DEBUG_DATA(dbg_data), .RTC_DO(),
+	.RTC_A(rtc_a), .RTC_DI(rtc_di), .RTC_CS(rtc_cs), .RTC_WR_N(rtc_wr_n), .MATRIX_CMD(24'd0), .MATRIX_CMD_WR(1'b0),
+	.DEBUG_ADDR(dbg_addr), .DEBUG_DATA(dbg_data), .RTC_DO(rtc_do),
 
 	.FT_SPI_ON(ft_spi_on), .FT_VGA_ON(), .FT_RESET(), .FT_SCK(), .FT_MOSI(ft_mosi), .FT_MISO(FT_SPI_MISO),
 	.FT_CS_N(ft_cs_n),
@@ -330,6 +348,25 @@ rc2014_machine machine (
 	.hold_a(term_rts || term_xoff),
 	.tx_b(),
 	.rx_b(1'b1),
+	.img_mounted(sdc_img_mounted[5:4]),
+	.img_size(sdc_img_size),
+	.sdc_rd(hdf_rd),
+	.sdc_wr(hdf_wr),
+	.sdc_sector(hdf_sector),
+	.sdc_busy(sdc_busy && hdf_own),
+	.sdc_done(sdc_done && hdf_own),
+	.sdc_error(sdc_error),
+	.sdc_byte_in_strobe(sdc_byte_in_strobe && hdf_own),
+	.sdc_byte_addr(sdc_byte_addr),
+	.sdc_byte_in_data(sdc_byte_in_data),
+	.sdc_byte_out_data(hdf_out_data),
+	.cf_led(cf_led),
+	.power_reset(areset),
+	.rtc_a(rtc_a),
+	.rtc_do(rtc_do),
+	.rtc_di(rtc_di),
+	.rtc_cs(rtc_cs),
+	.rtc_wr_n(rtc_wr_n),
 	.cpu_a(cpu_a),
 	.cpu_do(),
 	.cpu_di(),

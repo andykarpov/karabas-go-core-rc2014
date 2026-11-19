@@ -24,6 +24,8 @@
 
  I/O (A7..A0, the RC2014 decodes 8 bits):
    00     front panel switches: read 00 (RomWBW: primary serial console, menu boot); writes dropped
+   10-17  CF module (rc2014_cf, 8-bit IDE)
+   C0     DS1302 RTC (rc2014_ds1302)
    38-3F  pageable ROM toggle (Classic)
    78-7F  Z2 page registers / paging enable (RomWBW)
    80-81  ACIA (serial = 1, Mini always) or
@@ -57,6 +59,29 @@ module rc2014_machine (
 	input wire hold_a,           // the terminal asks to wait (its RTS): the ACIA / SIO A start no new frame
 	output wire tx_b,            // the second channel of the SIO/2
 	input wire rx_b,
+
+	// the CF module (rc2014_cf: hdf_ata on the file mounter, slot 4 = device 0)
+	input wire [1:0] img_mounted,
+	input wire [63:0] img_size,
+	output wire [1:0] sdc_rd,
+	output wire [1:0] sdc_wr,
+	output wire [31:0] sdc_sector,
+	input wire sdc_busy,
+	input wire sdc_done,
+	input wire sdc_error,
+	input wire sdc_byte_in_strobe,
+	input wire [8:0] sdc_byte_addr,
+	input wire [7:0] sdc_byte_in_data,
+	output wire [7:0] sdc_byte_out_data,
+	output wire cf_led,
+	input wire power_reset,      // the power-on reset (the CF forgets its image only then)
+
+	// the DS1302 (rc2014_ds1302) on the RTC RAM of kg_mcu2 (rtc_mode 1, DS1307)
+	output wire [7:0] rtc_a,
+	input wire [7:0] rtc_do,
+	output wire [7:0] rtc_di,
+	output wire rtc_cs,
+	output wire rtc_wr_n,
 
 	output wire [15:0] cpu_a,
 	output wire [7:0] cpu_do,        // the simulation: the bus of the Z80
@@ -111,6 +136,7 @@ always @(posedge clk) begin
 end
 wire rd_end = io_rd_q && !io_rd;   // the end of a read (side effects of the read)
 wire wr_stb = io_wr && !io_wr_q;    // the start of a write (DO is valid from T1)
+wire wr_end = io_wr_q && !io_wr;    // the end of a write
 reg [7:0] io_a = 8'd0;              // the port of the last read (the strobe comes after it)
 always @(posedge clk)
 	if (io_rd) io_a <= a[7:0];
@@ -197,6 +223,27 @@ rc2014_sio sio (
 assign tx_a = use_acia ? acia_tx : sio_tx_a;
 assign int_n = use_acia ? !acia_irq : sio_int_n;
 
+// ---------------------------------------------------------------- CF, DS1302
+
+wire [7:0] cf_do;
+wire cf_sel;
+rc2014_cf cf (
+	.clk(clk), .reset(power_reset), .bus_reset(reset),
+	.a(rd_end ? io_a : a[7:0]), .io_rd(io_rd), .io_wr(io_wr), .rd_end(rd_end), .wr_end(wr_end),
+	.din(dout), .dout(cf_do), .sel(cf_sel),
+	.img_mounted(img_mounted), .img_size(img_size), .sdc_rd(sdc_rd), .sdc_wr(sdc_wr), .sdc_sector(sdc_sector),
+	.sdc_busy(sdc_busy), .sdc_done(sdc_done), .sdc_error(sdc_error), .sdc_byte_in_strobe(sdc_byte_in_strobe),
+	.sdc_byte_addr(sdc_byte_addr), .sdc_byte_in_data(sdc_byte_in_data), .sdc_byte_out_data(sdc_byte_out_data),
+	.led(cf_led)
+);
+
+wire [7:0] rtc_port;
+rc2014_ds1302 ds1302 (
+	.clk(clk), .reset(reset),
+	.wr_stb(wr_stb && a[7:0] == 8'hC0), .din(dout), .dout(rtc_port),
+	.rtc_a(rtc_a), .rtc_do(rtc_do), .rtc_di(rtc_di), .rtc_cs(rtc_cs), .rtc_wr_n(rtc_wr_n)
+);
+
 // ---------------------------------------------------------------- read data
 
 always @(posedge clk) begin
@@ -211,6 +258,10 @@ always @(posedge clk) begin
 			din <= acia_do;
 		else if (sio_sel)
 			din <= sio_do;
+		else if (cf_sel)
+			din <= cf_do;
+		else if (a[7:0] == 8'hC0)
+			din <= rtc_port;
 		else
 			din <= 8'hFF;
 	end

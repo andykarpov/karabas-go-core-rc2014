@@ -1,12 +1,12 @@
 {
     "id": "rc2014",
     "name": "RC2014",
-    "build": "26111877",
+    "build": "26111901",
     "visible": true,
     "type": "osd",
     "order": 41,
     "eeprom_bank": 255,
-    "rtc_mode": 0,
+    "rtc_mode": 1,
     "roms": [
         {
             "filename": "roms/kg/romwbw.rom",
@@ -24,11 +24,22 @@
     "boards": {
         "minig": {
             "link": 2,
-            "build": "26111877",
+            "build": "26111901",
             "bitstream": "karabas_minig.bin"
         }
     },
     "osd": [
+        {
+            "type": "F",
+            "name": "CF card",
+            "slot": 4,
+            "extensions": ".img,.hdf",
+            "dir": "/rc2014",
+            "hotkey": "Menu+F1"
+        },
+        {
+            "type": "-"
+        },
         {
             "type": "S",
             "name": "Profile",
