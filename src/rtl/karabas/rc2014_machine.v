@@ -28,7 +28,7 @@
    01, 02 joystick module: joystick 1 / 2, active low (0 up, 1 down, 2 left, 3 right, 4 fire 1,
           5 fire 2)
    10-17  CF module (rc2014_cf, 8-bit IDE)
-   60, 64 8242 PS/2 keyboard controller (rc2014_kbd8242, RomWBW TMSMODE_MSXKBD)
+   60, 64 8242 PS/2 keyboard controller (rc2014_kbd8242, RomWBW TMSMODE_MSXKBD), only with kbd_en
    98, 99 TMS9918A (vdp18; VRAM 16K in block RAM), its frame interrupt on INT_n
    D8, D0 YM2149 (jt49, Ed Brindley module: D8 write register select / read data, D0 write data;
           3.579545 MHz / 2); port A in = the joystick of port B bit 6 (MSX style, for MSX8)
@@ -77,6 +77,7 @@ module rc2014_machine (
 	input wire [5:0] joy2,
 	input wire [7:0] kbd_code,   // the keyboard of the 8242: PS/2 set 2 bytes
 	input wire kbd_wr,
+	input wire kbd_en,           // the 8242 is on the bus (Console = TMS9918); off: 60 / 64 read FF
 
 	// the TMS9918 picture (msx_video of the top): the pixel enable, the active area, the colour
 	output wire vdp_ce_pix,
@@ -307,8 +308,9 @@ jt49_bus psg (
 	.IOA_in({ 2'b11, ~psg_joy }), .IOA_out(), .IOB_in(8'hFF), .IOB_out(psg_iob)
 );
 
-wire kbd_sel = a[7:0] == 8'h60 || a[7:0] == 8'h64;
-wire kbd_rd_sel = io_a == 8'h60 || io_a == 8'h64;
+// only with the TMS console: else Fuzix finds the keyboard and moves its console to the TMS
+wire kbd_sel = kbd_en && (a[7:0] == 8'h60 || a[7:0] == 8'h64);
+wire kbd_rd_sel = kbd_en && (io_a == 8'h60 || io_a == 8'h64);
 wire [7:0] kbd_do;
 rc2014_kbd8242 kbd (
 	.clk(clk), .reset(reset),

@@ -167,10 +167,43 @@ TMS9918A (вывод на HDMI вместо терминала по пункту
 
 Сделано (2026-11-19): топы Go и Mini и сборки всех плат — уже в Ф3 (26111903, `tools/mktops.py`); README.md / README.ru.md (машина, порты, OSD, второй порт, CF, сборка, лицензии); `cores.json` в karabas-go (rc2014.kg из master). Go и Mini на плате не запускались.
 
+### Порядок после релиза (пользователь 2026-11-19)
+
+Ф5 Fuzix на таймере TMS9918 → Ф6 звук SN76489 → Ф7 Wi-Fi через ESP → Ф8 принтер → Ф9 контроллер дискет WD37C65 (на Go — и настоящие дискеты). Остальное из беклога (CTC, V9958, Z180 / eZ80) — потом.
+
+### Ф5 — Fuzix (ветка f5-fuzix)
+
+Fuzix платформы `rc2014` (EtchedPixels/FUZIX, `Kernel/platform/platform-rc2014`) берёт таймер от кадрового прерывания TMS9918A, если CTC нет (`discard.c`: `timer_source = TIMER_TMS9918A`); клавиатура PS/2 на 60 / 64 делает экран TMS терминалом; джойстики 01 / 02 — как у нас; DS1302 на C0 — только время. Загрузка из RomWBW: образ Fuzix (`disk.img`, свой, не вместе со слайсами RomWBW) на CF, в загрузчике номер диска, затем `bootdev: hda1`.
+Цель: Fuzix 0.4 с CF на Mini G: многозадачность, `sh`, консоль на терминале (SIO A) и на TMS.
+Образ: готовый `disk.img` с fuzix.org/downloads/0.4/rc2014/ (сайт 2026-11-19 отсюда недоступен) или своя сборка (`make diskimage`: Fuzix C Compiler Kit + Bintools в /opt/fcc, SDCC).
+
+Сделано (2026-11-19, сборка Mini G 26111905):
+- Образ собран из исходников (fuzix.org недоступен и у пользователя): `tools/rc2014_fuzix.sh <work dir>` — SDCC 3.8 с патчами Fuzix (EtchedPixels/sdcc280, только z80 / z180; ядру нужен `--external-banker`, SDCC 4.2 дистрибутива его не знает; `configure` форка старше `configure.ac`: autoconf), Fuzix-Bintools и Fuzix-Compiler-Kit в /opt/fcc (путь вшит в cc.c), `make TARGET=rc2014 kclean diskimage`. Нужны пакеты gcc, g++, autoconf, texinfo, bison, flex, libboost-dev, libbsd-dev, byacc. Результат `roms/fuzix/rc2014_fuzix.img.xz` (40 МБ → 1,1 МБ; коммиты исходников в `rc2014_fuzix.txt`), Fuzix 0.5.
+- 8242 под Fuzix (`ps2direct.c`): AA очищает FIFO (Fuzix не вычитывает старые байты перед самотестом — был «PS/2 self test: F0»), AD / AE выключают / включают клавиатуру, A9 → 01 (мыши нет), D4 + байт мыши — без ответа, байт клавиатуре очищает FIFO (как PS/2). 8242 на шине только при Console = TMS9918 (иначе Fuzix находит клавиатуру и уводит консоль на невидимый TMS; RomWBW в режиме Terminal клавиатура TMS не нужна).
+- Плата: Console = TMS9918 — «Switching to video output», tty1-4 на TMS, клавиатура PS/2, CF «KARABAS HDF» hda1 / hda2, таймер TMS («Enabling interrupts ... ok», `sleep 10` = 11 с), `login: root`, `ls`, `ps`; tty6 = SIO B = CDC 1 (`echo > /dev/tty6` пришло на `-if02`). Console = Terminal — tty1 SIO A на встроенном терминале, клавиатура терминала, `fsck` грязного тома с ответами.
+- Сборка 26111905 всех плат, тайминги сходятся: Mini G 10 005 LUT (66 %) / 86 % slices, Mini 10 140 (67 %) / 79 %, Go 9 250 (61 %) / 83 %.
+- Известное: Fuzix пишет «VDP938 / VDP9958 detected» — его проверка (`tms_do_setup`) читает порт данных 98 после записи R15 и видит случайный байт буфера чтения; режимы экрана у него все 9918A, на работу не влияет. Год в `date` 2012 (часы платы сбиты, время верное; год DS1302 не проверялся отдельно).
+
+### Ф6 — SN76489 (ветка f6-sn76489)
+
+Звуковой модуль SN76489 RC2014 (RomWBW `SN76489ENABLE`), в микшер к YM2149.
+
+### Ф7 — Wi-Fi через ESP (ветка f7-wifi)
+
+ESP8266 платы как модем AT на последовательном порту машины (как модуль RC2014 Wi-Fi); telnet из CP/M.
+
+### Ф8 — принтер (ветка f8-printer)
+
+Порт принтера RC2014 (RomWBW `LPT`, Fuzix MG014) → USB-принтер через порт 3 `kg_mcu2`.
+
+### Ф9 — дискеты (ветка f9-fdc)
+
+WD37C65 (RomWBW `FDMODE_RCWDC`, Fuzix — контроллер на 48-58): образы дискет на SD; на Go — и настоящий дисковод.
+
 ## OSD (набросок, показать пользователю до мержа Ф1)
 
 Ф1 (core.json, одобрено пользователем 2026-11-19): Profile (RomWBW 512K / Classic / Mini), Serial (SIO/2 / ACIA; Mini всегда ACIA), CPU (7.37 / 14.75 MHz), Colour (Amber / Green / White, как у pdp2026), Reset (Menu+F12). Потом: Console (Terminal / TMS9918, Ф3), CF image (Ф2).
 
 ## Беклог
 
-Z80 CTC на 88-8B (IM2-векторы, каскад 2→3, своя сборка RomWBW `CTCENABLE` / INTMODE 2) — таймер для Fuzix; SIO B через MCU (`kg_mcu_uart`, XMODEM с ПК); Fuzix на CF (таймер от CTC или кадрового прерывания TMS9918). V9958 (из core-msx2), SN76489, WD37C65 + образы дискет, Wi-Fi через ESP, модули Z180 и eZ80 (eZ80 из core-agon), принтер.
+Z80 CTC на 88-8B (IM2-векторы, каскад 2→3, своя сборка RomWBW `CTCENABLE` / INTMODE 2); V9958 (из core-msx2); модули Z180 и eZ80 (eZ80 из core-agon). (Fuzix, SN76489, Wi-Fi, принтер, WD37C65 — фазы Ф5-Ф9.)

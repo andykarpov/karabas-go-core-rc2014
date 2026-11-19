@@ -1,0 +1,5 @@
+Fuzix disk image of the RC2014 core: write rc2014_fuzix.img (unxz) as the CF card image.
+FUZIX 776bfc942c0ce3f5b86e4c48848d154a60ff1cb6 https://github.com/EtchedPixels/FUZIX
+Fuzix-Bintools 791db957f9fb451dfb0b7faf8a77aa435a75ed7b https://github.com/EtchedPixels/Fuzix-Bintools
+Fuzix-Compiler-Kit 7b2a72edea6967e7df0b32e1e898fdea1754cc67 https://github.com/EtchedPixels/Fuzix-Compiler-Kit
+sdcc280 7f82491cee42c6f1826be0810696a95c76d352bc https://github.com/EtchedPixels/sdcc280

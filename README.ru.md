@@ -1,6 +1,6 @@
 # Ядро RC2014 для Karabas Go / Mini / Mini G
 
-Модульный Z80-компьютер [RC2014](https://rc2014.co.uk/) для плат семейства Karabas Go (Xilinx Spartan-6 XC6SLX25): Z80 с обычными платами RC2014 и встроенным терминалом VT100 на HDMI. Запускает RomWBW (CP/M 2.2, CP/M 3, ZSDOS, BASIC, Forth, игры), SCM и NASCOM BASIC.
+Модульный Z80-компьютер [RC2014](https://rc2014.co.uk/) для плат семейства Karabas Go (Xilinx Spartan-6 XC6SLX25): Z80 с обычными платами RC2014 и встроенным терминалом VT100 на HDMI. Запускает RomWBW (CP/M 2.2, CP/M 3, ZSDOS, BASIC, Forth, игры), Fuzix, SCM и NASCOM BASIC.
 
 Состояние: собрано для Karabas Go, Mini и Mini G (`src/rc2014.kg`, один файл на все три); проверено на Mini G, на Go и Mini ещё не запускалось. План и история — в `docs/PLAN.md`, английский README — `README.md`.
 
@@ -27,6 +27,7 @@ ROM лежат внутри `rc2014.kg`: RomWBW 3.6 (наша сборка `RCZ8
 - **Console** (OSD, Menu+C): *Terminal* — встроенный VT100 на последовательной линии (SIO/2 A или ACIA), клавиатура USB идёт в терминал; *TMS9918* — картинка TMS9918 и клавиатура на 8242: RomWBW тогда запускает консоль там (передняя панель читается как SW_CRT). *Colour* — цвет терминала: янтарный, зелёный или белый.
 - **Второй последовательный порт**: канал B SIO/2 — второй USB-serial порт платы («Karabas core serial», `/dev/serial/by-id/usb-Karabas_Go_*-if02` в Linux; прошивка с двумя портами CDC). В RomWBW это SIO1: `I 1` в загрузчике переносит туда консоль, `XM` передаёт файлы.
 - **CF card** (Menu+F1): образ диска (`.img`, `.hdf`) в `/rc2014` на SD-карте, например образы RomWBW `hd1k` (`hd1k_prefix.dat` + слайсы). *CF source* = *Card* — вместо образа CF-карта в слоте платы (осторожно: ядро пишет на неё, как машина).
+- **Fuzix**: распакуйте `src/roms/fuzix/rc2014_fuzix.img.xz` (образ CF 40 МБ, Fuzix 0.5, собран `src/tools/rc2014_fuzix.sh`) в `/rc2014`, выберите его в *CF card*, в загрузчике RomWBW наберите `2`, на `bootdev:` — `hda1`, вход `root`. Таймер — кадровое прерывание TMS9918. При *Console* = *TMS9918* Fuzix работает на экране TMS с клавиатурой (tty1-4), при *Terminal* — на терминале (tty1); tty2 / tty6 — второй USB-serial порт. Выходите командой `shutdown` (иначе при следующей загрузке ответьте на вопросы `fsck`).
 - **Время**: DS1302 читает и ставит часы платы (RomWBW `RTC`, `TIME` в ZSDOS).
 - **Сброс**: Menu+F12.
 
@@ -44,6 +45,7 @@ ISE 14.7: `cd src; make minig` (или `go`, `mini`). ROM RomWBW: `src/tools/rc2
 - терминал VT100 pdp2011 / vt10x (Sytse van Slooten) в версии [tsybulin/karabas-go-core-pdp2026](https://github.com/tsybulin/karabas-go-core-pdp2026): **только некоммерческое использование**;
 - afifo (Dan Gisselquist): GPL-3.0;
 - RomWBW (Wayne Warthen и соавторы): AGPL-3.0, отдельная программа в `.kg`;
+- Fuzix (Alan Cox и соавторы): GPL-2.0, образ диска в `src/roms/fuzix` (исходники — коммиты в `rc2014_fuzix.txt`);
 - SCM (Steve Cousins), NASCOM BASIC (Microsoft, Grant Searle): как их распространяет RC2014.
 
 RC2014 — торговая марка Spencer Owen. Проект не связан с RC2014.

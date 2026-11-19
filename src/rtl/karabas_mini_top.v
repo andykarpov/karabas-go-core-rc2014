@@ -407,6 +407,7 @@ rc2014_machine machine (
 	.joy2(joy2),
 	.kbd_code(ps2_code),
 	.kbd_wr(ps2_wr && !ps2_kind && tms),
+	.kbd_en(tms),
 	.vdp_ce_pix(vdp_ce_pix),
 	.vdp_hor_active(vdp_hor_active),
 	.vdp_vert_active(vdp_vert_active),

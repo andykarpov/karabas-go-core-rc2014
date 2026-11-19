@@ -9,15 +9,19 @@
 
    status (64)  bit 0 OBF (a byte waits at 60), bit 1 IBF (always 0: a write is taken at once),
                 bit 2 system flag (1)
-   commands     AA self test -> 55; 20 read the command byte; 60 write it (the next byte at 60);
-                AB / A9 interface tests -> 00; AD / AE / A7 / A8 port disable / enable: taken
+   commands     AA self test -> 55 (the FIFO emptied first); 20 read the command byte; 60 write it
+                (the next byte at 60); AB keyboard interface test -> 00; A9 mouse interface test
+                -> 01 (no mouse: Fuzix leaves the mouse off); AD / AE keyboard off / on (its bytes
+                are dropped while off); A7 / A8 taken; D4 the next byte at 60 is for the mouse
+                (dropped, no answer)
    to the keyboard (a byte at 60): FF reset -> FA AA; ED LEDs, F3 rate, F0 scan set (a parameter
                 byte follows) -> FA, and FA for the parameter; F2 identify -> FA AB 83; EE echo -> EE;
-                any other byte -> FA
+                any other byte -> FA. A byte to the keyboard empties the FIFO first (a PS/2
+                keyboard clears its buffer on a command): the answer is the next byte read.
 
  One FIFO of 16 bytes holds the keyboard bytes and the answers (an answer never gets lost: a
  keyboard byte of the same clock waits a clock). A read of 60 with nothing there gives the last
- byte again. No interrupt (KBDINTS off in RomWBW).
+ byte again. No interrupt (KBDINTS off in RomWBW; Fuzix polls the controller on every interrupt).
 
  Bus: rd_stb at the END of a CPU read (the byte is popped), wr_stb one clock with din.
 */
@@ -45,6 +49,8 @@ wire [7:0] head = obf ? q[rp] : last;
 reg [7:0] cmd_byte = 8'h20;
 reg want_cmd = 1'b0;       // the next byte at 60 is the command byte (command 60)
 reg want_par = 1'b0;       // the next byte at 60 is the parameter of a keyboard command
+reg want_mouse = 1'b0;     // the next byte at 60 is for the mouse (D4)
+reg kbd_off = 1'b0;        // AD: the keyboard is off
 
 // answers waiting to go into the FIFO (one a clock, the first in a[7:0])
 reg [23:0] ans = 24'd0;
@@ -63,18 +69,21 @@ always @(posedge clk) begin
 		n <= 5'd0;
 		want_cmd <= 1'b0;
 		want_par <= 1'b0;
+		want_mouse <= 1'b0;
+		kbd_off <= 1'b0;
 		ans_n <= 2'd0;
 		kbd_pend <= 1'b0;
 		cmd_byte <= 8'h20;
 	end
 	else begin : step
-		reg push;
+		reg push, flush;
 		reg [7:0] pv;
 		push = 1'b0;
+		flush = 1'b0;
 		pv = 8'h00;
 
 		// a new keyboard byte (held a clock when an answer goes in)
-		if (kbd_wr) begin
+		if (kbd_wr && !kbd_off) begin
 			kbd_hold <= kbd_code;
 			kbd_pend <= 1'b1;
 		end
@@ -95,10 +104,14 @@ always @(posedge clk) begin
 		if (wr_stb && a2) begin
 			want_cmd <= 1'b0;
 			case (din)
-				8'hAA: begin ans <= 24'h000055; ans_n <= 2'd1; end
+				8'hAA: begin ans <= 24'h000055; ans_n <= 2'd1; flush = 1'b1; kbd_pend <= 1'b0; end
 				8'h20: begin ans <= { 16'd0, cmd_byte }; ans_n <= 2'd1; end
 				8'h60: want_cmd <= 1'b1;
-				8'hAB, 8'hA9: begin ans <= 24'h000000; ans_n <= 2'd1; end
+				8'hAB: begin ans <= 24'h000000; ans_n <= 2'd1; end
+				8'hA9: begin ans <= 24'h000001; ans_n <= 2'd1; end
+				8'hAD: kbd_off <= 1'b1;
+				8'hAE: kbd_off <= 1'b0;
+				8'hD4: want_mouse <= 1'b1;
 				default: ;
 			endcase
 		end
@@ -107,20 +120,31 @@ always @(posedge clk) begin
 				cmd_byte <= din;
 				want_cmd <= 1'b0;
 			end
+			else if (want_mouse)
+				want_mouse <= 1'b0;
 			else if (want_par) begin
 				want_par <= 1'b0;
 				ans <= 24'h0000FA; ans_n <= 2'd1;
 			end
-			else case (din)
+			else begin
+			flush = 1'b1;
+			kbd_pend <= 1'b0;
+			case (din)
 				8'hFF: begin ans <= 24'h00AAFA; ans_n <= 2'd2; end
 				8'hED, 8'hF3, 8'hF0: begin ans <= 24'h0000FA; ans_n <= 2'd1; want_par <= 1'b1; end
 				8'hF2: begin ans <= 24'h83ABFA; ans_n <= 2'd3; end
 				8'hEE: begin ans <= 24'h0000EE; ans_n <= 2'd1; end
 				default: begin ans <= 24'h0000FA; ans_n <= 2'd1; end
 			endcase
+			end
 		end
 
-		// the FIFO (a byte over 16 is dropped)
+		// the FIFO (a byte over 16 is dropped); emptied by flush
+		if (flush) begin
+			rp <= wp;
+			n <= 5'd0;
+		end
+		else begin
 		if (push && n != 5'd16) begin
 			q[wp] <= pv;
 			wp <= wp + 4'd1;
@@ -130,6 +154,7 @@ always @(posedge clk) begin
 			rp <= rp + 4'd1;
 		end
 		n <= n + ((push && n != 5'd16) ? 5'd1 : 5'd0) - (pop ? 5'd1 : 5'd0);
+		end
 	end
 end
 
