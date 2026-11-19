@@ -165,6 +165,8 @@ TMS9918A (вывод на HDMI вместо терминала по пункту
 
 Топы Go и Mini, README / README.ru, сборки всех плат, `cores.json` в karabas-go.
 
+Сделано (2026-11-19): топы Go и Mini и сборки всех плат — уже в Ф3 (26111903, `tools/mktops.py`); README.md / README.ru.md (машина, порты, OSD, второй порт, CF, сборка, лицензии); `cores.json` в karabas-go (rc2014.kg из master). Go и Mini на плате не запускались.
+
 ## OSD (набросок, показать пользователю до мержа Ф1)
 
 Ф1 (core.json, одобрено пользователем 2026-11-19): Profile (RomWBW 512K / Classic / Mini), Serial (SIO/2 / ACIA; Mini всегда ACIA), CPU (7.37 / 14.75 MHz), Colour (Amber / Green / White, как у pdp2026), Reset (Menu+F12). Потом: Console (Terminal / TMS9918, Ф3), CF image (Ф2).
