@@ -25,6 +25,12 @@
  vector of an interrupt acknowledge (IM2) is on the data bus with ack (M1 and IORQ): the RC2014
  software runs IM1, the daisy chain (IEI / IEO, RETI decoding) is not modelled.
 
+ Channel B is a byte stream (no line): the USB serial port of the board (kg_mcu2 port 0, the clean
+ CDC of the firmware). A byte of rxb_data / rxb_wr goes into its Rx FIFO (rxb_ready: the FIFO is
+ empty and Rx is on, so a byte waits in the MCU instead of overrunning); a byte written to its Tx
+ buffer goes out as txb_data / txb_wr at once unless txb_full (the MCU side has no room). The clock
+ mode of WR4 does not matter there.
+
  Bus: rd_stb / wr_stb one clock each, rd_stb at the END of the CPU read.
 */
 module rc2014_sio (
@@ -42,8 +48,12 @@ module rc2014_sio (
 
 	output wire tx_a,
 	input wire rx_a,
-	output wire tx_b,
-	input wire rx_b,
+	input wire [7:0] rxb_data,   // channel B: the byte stream of the USB serial port
+	input wire rxb_wr,
+	output wire rxb_ready,
+	output wire [7:0] txb_data,
+	output wire txb_wr,
+	input wire txb_full,
 	output wire rts_a,
 	output wire rts_b,
 	input wire hold_a        // the receiver of line A asks to wait (RTS of the terminal): no new frame starts
@@ -82,6 +92,7 @@ assign dout = a[1] ? ch_dout[1] : ch_dout[0];
 
 rc2014_sio_ch #(.CHAN_B(0)) cha (
 	.clk(clk), .reset(reset), .ce(ce),
+	.b_data(8'd0), .b_wr(1'b0), .b_ready(), .bt_data(), .bt_wr(), .bt_full(1'b0),
 	.sel(!a[1]), .data(a[0]), .rd_stb(rd_stb), .wr_stb(wr_stb), .din(din), .dout(ch_dout[0]),
 	.int_any(|ch_int), .vector(vector), .irq(ch_int[0]), .cause(ch_cause[0]),
 	.wr2(), .wr1_sav(), .tx(tx_a), .rx(rx_a), .rts(rts_a), .hold(hold_a)
@@ -89,9 +100,10 @@ rc2014_sio_ch #(.CHAN_B(0)) cha (
 
 rc2014_sio_ch #(.CHAN_B(1)) chb (
 	.clk(clk), .reset(reset), .ce(ce),
+	.b_data(rxb_data), .b_wr(rxb_wr), .b_ready(rxb_ready), .bt_data(txb_data), .bt_wr(txb_wr), .bt_full(txb_full),
 	.sel(a[1]), .data(a[0]), .rd_stb(rd_stb), .wr_stb(wr_stb), .din(din), .dout(ch_dout[1]),
 	.int_any(|ch_int), .vector(vector), .irq(ch_int[1]), .cause(ch_cause[1]),
-	.wr2(wr2_b), .wr1_sav(wr1_sav_b), .tx(tx_b), .rx(rx_b), .rts(rts_b), .hold(1'b0)
+	.wr2(wr2_b), .wr1_sav(wr1_sav_b), .tx(), .rx(1'b1), .rts(rts_b), .hold(1'b0)
 );
 
 endmodule
@@ -102,6 +114,14 @@ module rc2014_sio_ch #(
 	input wire clk,
 	input wire reset,
 	input wire ce,
+
+	// CHAN_B: the byte stream instead of the line (see the top)
+	input wire [7:0] b_data,
+	input wire b_wr,
+	output wire b_ready,
+	output reg [7:0] bt_data = 8'd0,
+	output reg bt_wr = 1'b0,
+	input wire bt_full,
 
 	input wire sel,
 	input wire data,
@@ -141,19 +161,33 @@ reg tx_load = 1'b0;
 wire tx_busy, tx_line;
 reg tx_ip = 1'b0;            // Tx interrupt pending
 reg tx_armed = 1'b0;         // a character was written since the last reset of Tx int pending
+generate if (!CHAN_B) begin : line_tx
 rc2014_ser_tx stx (
 	.clk(clk), .reset(reset), .ce(ce), .div(div),
 	.load(tx_load), .data(tdr), .busy(tx_busy), .tx(tx_line)
 );
+end else begin : no_line_tx
+assign tx_busy = 1'b0;
+assign tx_line = 1'b1;
+end endgenerate
 assign tx = wr5[4] ? 1'b0 : tx_line;
 
 // receive FIFO (3 deep)
-wire rx_done, rx_fe;
-wire [7:0] rx_data;
+wire line_done, line_fe;
+wire [7:0] line_data;
+generate if (!CHAN_B) begin : line_rx
 rc2014_ser_rx srx (
 	.clk(clk), .reset(reset), .ce(ce), .div(div),
-	.rx(rx), .done(rx_done), .data(rx_data), .frame_err(rx_fe)
+	.rx(rx), .done(line_done), .data(line_data), .frame_err(line_fe)
 );
+end else begin : no_line_rx
+assign line_done = 1'b0;
+assign line_data = 8'd0;
+assign line_fe = 1'b0;
+end endgenerate
+wire rx_done = CHAN_B ? b_wr && rx_en : line_done;
+wire rx_fe = CHAN_B ? 1'b0 : line_fe;
+wire [7:0] rx_data = CHAN_B ? b_data : line_data;
 reg [7:0] fifo [0:2];
 reg [2:0] fifo_fe = 3'b000;
 reg [1:0] cnt = 2'd0;
@@ -161,6 +195,12 @@ reg ovr = 1'b0;              // RR1 bit 5
 reg fe_rr1 = 1'b0;           // RR1 bit 6 (of the character at the top)
 reg rx_first = 1'b1;         // Rx int on first character: armed
 wire rca = cnt != 2'd0;
+// the byte stream: one byte at a time into an empty FIFO (the port gives out_wr a clock after
+// ready, the count a clock after that)
+reg b_wr_q = 1'b0;
+always @(posedge clk)
+	b_wr_q <= b_wr;
+assign b_ready = rx_en && cnt == 2'd0 && !b_wr && !b_wr_q;
 
 reg rx_first_hit = 1'b0;     // the first character after the arming is in the FIFO
 wire acc_wr = sel && wr_stb;
@@ -199,6 +239,7 @@ end
 
 always @(posedge clk) begin
 	tx_load <= 1'b0;
+	bt_wr <= 1'b0;
 	if (reset) begin
 		ptr <= 3'd0;
 		wr1 <= 8'd0;
@@ -218,8 +259,10 @@ always @(posedge clk) begin
 	else begin
 		// Tx: buffer -> shift register; the buffer going empty sets Tx int pending (not when it
 		// was empty already)
-		if (!tbe && !tx_busy && !tx_load && tx_en && !hold) begin
-			tx_load <= 1'b1;
+		if (!tbe && !tx_busy && !tx_load && tx_en && !hold && !(CHAN_B && bt_full)) begin
+			tx_load <= !CHAN_B;
+			bt_wr <= CHAN_B;
+			bt_data <= tdr;
 			tbe <= 1'b1;
 			if (tx_armed) tx_ip <= 1'b1;
 		end

@@ -12,6 +12,13 @@
 //   --cf FILE          the CF image (device 0, the file mounter of kg_mcu2 modelled: a sector in ~40 us)
 //   --trace-io         print every I/O access (port, data) to stderr
 //   --fill-random      the SRAM random before the ROMs are loaded (as after power on; give it first)
+//   --usb MS:TEXT      bytes into SIO/2 channel B (the USB serial port, as kg_mcu2 port 0); its
+//                      output goes to stderr as [B ...] at the end
+//   --tms              Console = TMS9918: port 00 reads 80, the keyboard is the 8242
+//   --kbd MS:TEXT      type TEXT on the PS/2 keyboard of the 8242 (set 2 make / break, a key every 30 ms)
+//   --ppm FILE         the TMS9918 picture at the end (256 x 192, as msx_video takes it) to FILE
+//   --joy1 N / --joy2 N  joystick bits (0 up 1 down 2 left 3 right 4 fire 1 5 fire 2)
+// TRACE_MEM=N (env): the first N memory cycles (address at MREQ, the data then is not the one read)
 #include "Vrc2014_machine.h"
 #include "verilated.h"
 #include <cstdio>
@@ -26,12 +33,33 @@ static const double BIT_CLK = CLK_HZ / 115200.0;
 
 struct Key { double ms; std::string text; };
 
+// PS/2 set 2 make codes of the characters --kbd types (0: none); shift for upper case / symbols
+static int ps2_code(char c, int *shift) {
+	static const char *lo = "abcdefghijklmnopqrstuvwxyz";
+	static const uint8_t lc[26] = { 0x1C,0x32,0x21,0x23,0x24,0x2B,0x34,0x33,0x43,0x3B,0x42,0x4B,0x3A,
+		0x31,0x44,0x4D,0x15,0x2D,0x1B,0x2C,0x3C,0x2A,0x1D,0x22,0x35,0x1A };
+	static const uint8_t dg[10] = { 0x45,0x16,0x1E,0x26,0x25,0x2E,0x36,0x3D,0x3E,0x46 };
+	*shift = 0;
+	if (c >= 'a' && c <= 'z') return lc[strchr(lo, c) - lo];
+	if (c >= 'A' && c <= 'Z') { *shift = 1; return lc[c - 'A']; }
+	if (c >= '0' && c <= '9') return dg[c - '0'];
+	switch (c) {
+	case ' ': return 0x29; case '\r': return 0x5A; case '.': return 0x49; case ',': return 0x41;
+	case '-': return 0x4E; case '=': return 0x55; case '/': return 0x4A; case ';': return 0x4C;
+	case ':': *shift = 1; return 0x4C; case '+': *shift = 1; return 0x55; case '*': *shift = 1; return 0x3E;
+	case '?': *shift = 1; return 0x4A; case '"': *shift = 1; return 0x52;
+	}
+	return 0;
+}
+
 int main(int argc, char **argv) {
 	Verilated::commandArgs(argc, argv);
 	int profile = 0, serial = 0, turbo = 0, trace_io = 0, mem_lat = 1;
 	FILE *cf = nullptr; uint64_t cf_size = 0;
 	double ms = 100;
-	std::vector<Key> keys;
+	std::vector<Key> keys, usb, kbd;
+	int tms = 0, joy1 = 0, joy2 = 0;
+	std::string ppm;
 	static uint8_t mem[1 << 22];
 	memset(mem, 0xFF, sizeof mem);
 	for (int i = 1; i < argc; i++) {
@@ -61,7 +89,12 @@ int main(int argc, char **argv) {
 			fclose(f);
 			fprintf(stderr, "rom %s: %zu bytes at 0x%06lx\n", v.substr(c + 1).c_str(), n, addr);
 		}
-		else if (a == "--key") {
+		else if (a == "--tms") tms = 1;
+		else if (a == "--ppm") ppm = next();
+		else if (a == "--joy1") joy1 = atoi(next().c_str());
+		else if (a == "--joy2") joy2 = atoi(next().c_str());
+		else if (a == "--key" || a == "--usb" || a == "--kbd") {
+			std::vector<Key> &dst = a == "--key" ? keys : a == "--usb" ? usb : kbd;
 			std::string v = next();
 			size_t c = v.find(':');
 			std::string t, s = v.substr(c + 1);
@@ -69,7 +102,7 @@ int main(int argc, char **argv) {
 				if (s[k] == '\\' && k + 1 < s.size() && s[k + 1] == 'r') { t += '\r'; k++; }
 				else t += s[k];
 			}
-			keys.push_back({ atof(v.substr(0, c).c_str()), t });
+			dst.push_back({ atof(v.substr(0, c).c_str()), t });
 		}
 	}
 
@@ -79,7 +112,12 @@ int main(int argc, char **argv) {
 	m->turbo = turbo;
 	m->rx_a = 1;
 	m->hold_a = 0;
-	m->rx_b = 1;
+	m->rxb_wr = 0;
+	m->txb_full = 0;
+	m->fp_sw = tms ? 0x80 : 0x00;
+	m->joy1 = joy1;
+	m->joy2 = joy2;
+	m->kbd_wr = 0;
 	m->reset = 1;
 	m->power_reset = 1;
 	m->cf_card = 0;
@@ -91,6 +129,29 @@ int main(int argc, char **argv) {
 	for (auto &k : keys)
 		for (size_t j = 0; j < k.text.size(); j++)
 			txq.push_back({ (uint64_t)((k.ms + 2.0 * j) * CLK_HZ / 1000.0), (uint8_t)k.text[j] });
+
+	// channel B bytes and the PS/2 bytes: (not before clock, byte)
+	std::deque<std::pair<uint64_t, uint8_t>> usbq, kbdq;
+	for (auto &k : usb)
+		for (size_t j = 0; j < k.text.size(); j++)
+			usbq.push_back({ (uint64_t)(k.ms * CLK_HZ / 1000.0), (uint8_t)k.text[j] });
+	for (auto &k : kbd)
+		for (size_t j = 0; j < k.text.size(); j++) {
+			int sh, code = ps2_code(k.text[j], &sh);
+			if (!code) continue;
+			uint64_t t0 = (uint64_t)((k.ms + 30.0 * j) * CLK_HZ / 1000.0);
+			if (sh) kbdq.push_back({ t0, 0x12 });
+			kbdq.push_back({ t0, (uint8_t)code });
+			kbdq.push_back({ t0 + 500000, 0xF0 });
+			kbdq.push_back({ t0 + 500000, (uint8_t)code });
+			if (sh) { kbdq.push_back({ t0 + 500000, 0xF0 }); kbdq.push_back({ t0 + 500000, 0x12 }); }
+		}
+	uint64_t kbd_next = 0;
+	std::string b_out;
+	// the TMS picture (msx_video write side) and the YM2149 activity
+	static uint8_t fb[192][256];
+	int hor_d = 0, vert_d = 0, fx = 0, fy = 0;
+	long psg_changes = 0; int psg_last = -1;
 
 	uint64_t end = (uint64_t)(ms * CLK_HZ / 1000.0);
 	uint8_t rdata = 0xFF;
@@ -167,6 +228,28 @@ int main(int argc, char **argv) {
 			else if (sd_state == 3 && t >= sd_t) { m->sdc_done = 1; m->sdc_busy = 0; sd_state = 0; }
 		}
 
+		// channel B: a byte when the SIO takes one; its output collected
+		m->rxb_wr = 0;
+		if (!usbq.empty() && t >= usbq.front().first && m->rxb_ready) {
+			m->rxb_data = usbq.front().second; m->rxb_wr = 1; usbq.pop_front();
+		}
+		if (m->txb_wr) b_out += (char)m->txb_data;
+		// the PS/2 keyboard: a byte every 1 ms (about the PS/2 rate)
+		m->kbd_wr = 0;
+		if (!kbdq.empty() && t >= kbdq.front().first && t >= kbd_next) {
+			m->kbd_code = kbdq.front().second; m->kbd_wr = 1; kbdq.pop_front(); kbd_next = t + 50000;
+		}
+		// the TMS picture
+		if (m->vdp_ce_pix) {
+			int h = m->vdp_hor_active, v = m->vdp_vert_active;
+			if (v && !vert_d) fy = 0;
+			if (h && !hor_d) fx = 0; else if (h) fx++;
+			if (!h && hor_d && v) fy++;
+			if (h && v && fy < 192 && fx < 256) fb[fy][fx] = m->vdp_col;
+			hor_d = h; vert_d = v;
+		}
+		if (m->psg_sound != psg_last) { psg_changes++; psg_last = m->psg_sound; }
+
 		// tx_a -> stdout
 		int line = m->tx_a;
 		if (line != tx_last) { tx_edges++; tx_last = line; }
@@ -189,6 +272,12 @@ int main(int argc, char **argv) {
 			else m->rx_a = (tx_frame >> b) & 1;
 		}
 
+		if (getenv("TRACE_MEM")) {
+			static int lm = 0; static long nmem = 0;
+			int mr = (m->dbg >> 1) & 1;
+			if (mr && !lm && nmem < atol(getenv("TRACE_MEM"))) { fprintf(stderr, "[%.4f] mem %04x di %02x\n", t * 1000.0 / CLK_HZ, m->cpu_a, rdata); nmem++; }
+			lm = mr;
+		}
 		if (trace_io) {
 			int io = m->dbg & 1;
 			static int wr_seen = 0;
@@ -201,7 +290,17 @@ int main(int argc, char **argv) {
 		m->clk = 0;
 		m->eval();
 	}
-	fprintf(stderr, "\n[end %.1f ms, tx_a edges %ld, cf reads %ld writes %ld]\n", ms, tx_edges, sd_reads, sd_writes);
+	fprintf(stderr, "\n[end %.1f ms, tx_a edges %ld, cf reads %ld writes %ld, psg changes %ld]\n", ms, tx_edges, sd_reads, sd_writes, psg_changes);
+	if (!b_out.empty()) fprintf(stderr, "[B %s]\n", b_out.c_str());
+	if (!ppm.empty()) {
+		static const uint8_t pal[16][3] = { {0,0,0},{0,0,0},{33,200,66},{94,220,120},{84,85,237},{125,118,252},
+			{212,82,77},{66,235,245},{252,85,84},{255,121,120},{212,193,84},{230,206,128},{33,176,59},
+			{201,91,186},{204,204,204},{255,255,255} };
+		FILE *f = fopen(ppm.c_str(), "wb");
+		fprintf(f, "P6\n256 192\n255\n");
+		for (int y = 0; y < 192; y++) for (int x = 0; x < 256; x++) fwrite(pal[fb[y][x] & 15], 1, 3, f);
+		fclose(f);
+	}
 	if (cf) fclose(cf);
 	delete m;
 	return 0;
