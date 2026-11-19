@@ -9,6 +9,7 @@
 //   --ms N             simulated time (ms)
 //   --key MS:TEXT      type TEXT from MS on (\r = CR, one character every 2 ms; repeat)
 //   --mem-lat N        clocks from mem_a to mem_rdata (1 = rc2014_mem with a 0 ns SRAM; the board: 2)
+//   --cf FILE          the CF image (device 0, the file mounter of kg_mcu2 modelled: a sector in ~40 us)
 //   --trace-io         print every I/O access (port, data) to stderr
 //   --fill-random      the SRAM random before the ROMs are loaded (as after power on; give it first)
 #include "Vrc2014_machine.h"
@@ -28,6 +29,7 @@ struct Key { double ms; std::string text; };
 int main(int argc, char **argv) {
 	Verilated::commandArgs(argc, argv);
 	int profile = 0, serial = 0, turbo = 0, trace_io = 0, mem_lat = 1;
+	FILE *cf = nullptr; uint64_t cf_size = 0;
 	double ms = 100;
 	std::vector<Key> keys;
 	static uint8_t mem[1 << 22];
@@ -41,6 +43,13 @@ int main(int argc, char **argv) {
 		else if (a == "--ms") ms = atof(next().c_str());
 		else if (a == "--trace-io") trace_io = 1;
 		else if (a == "--mem-lat") mem_lat = atoi(next().c_str());
+		else if (a == "--cf") {
+			std::string f = next();
+			cf = fopen(f.c_str(), "r+b");
+			if (!cf) { perror(f.c_str()); return 1; }
+			fseek(cf, 0, SEEK_END); cf_size = ftell(cf);
+			fprintf(stderr, "cf %s: %llu bytes\n", f.c_str(), (unsigned long long)cf_size);
+		}
 		else if (a == "--fill-random") { unsigned x = 12345; for (size_t k = 0; k < sizeof mem; k++) { x = x * 1103515245u + 12345u; mem[k] = x >> 16; } }
 		else if (a == "--rom") {
 			std::string v = next();
@@ -72,6 +81,9 @@ int main(int argc, char **argv) {
 	m->hold_a = 0;
 	m->rx_b = 1;
 	m->reset = 1;
+	m->power_reset = 1;
+	m->cf_card = 0;
+	m->ide_din = 0xFF;
 	m->clk = 0;
 
 	// the typed characters: (start clock, byte)
@@ -88,9 +100,15 @@ int main(int argc, char **argv) {
 	int tx_busy = 0; uint64_t tx_t0 = 0; uint16_t tx_frame = 0;
 	int last_io = 0;
 	long tx_edges = 0; int tx_last = 1;
+	// the file mounter: 0 idle, 1 read (bytes out), 2 write (bytes in), then done
+	int sd_state = 0; uint64_t sd_t = 0; uint32_t sd_lba = 0; uint8_t sd_buf[512]; int sd_i = 0;
+	long sd_reads = 0, sd_writes = 0;
+	// the RTC RAM of kg_mcu2 (rtc_mode 1, DS1307 BCD): 2026-11-19 (Thu) 12:34:56
+	static uint8_t rtc[256] = { 0x56, 0x34, 0x12, 0x05, 0x19, 0x11, 0x26 };
+	uint8_t rtc_q = 0;
 
 	for (uint64_t t = 0; t < end && !Verilated::gotFinish(); t++) {
-		if (t == 100) m->reset = 0;
+		if (t == 100) { m->reset = 0; m->power_reset = 0; }
 		m->mem_rdata = rdata;
 		m->clk = 1;
 		m->eval();
@@ -100,6 +118,54 @@ int main(int argc, char **argv) {
 		pipe[0] = mem[m->mem_a & 0x3FFFFF];
 		rdata = pipe[mem_lat - 1];
 		if (m->mem_wr) mem[m->mem_a & 0x3FFFFF] = m->mem_wdata;
+
+		// the RTC RAM: the seconds tick (BCD, as the firmware sets them), rtc_a -> rtc_do a clock later,
+		// writes of the core
+		if (t % 50000000 == 49999999) {
+			uint8_t sec = rtc[0];
+			sec = ((sec & 0x0F) == 9) ? (uint8_t)((sec & 0xF0) + 0x10) : (uint8_t)(sec + 1);
+			if (sec >= 0x60) { sec = 0; rtc[1] = ((rtc[1] & 0x0F) == 9) ? (uint8_t)((rtc[1] & 0xF0) + 0x10) : (uint8_t)(rtc[1] + 1); }
+			rtc[0] = sec;
+		}
+		m->rtc_do = rtc_q;
+		rtc_q = rtc[m->rtc_a];
+		if (m->rtc_cs && !m->rtc_wr_n) { rtc[m->rtc_a] = m->rtc_di; fprintf(stderr, "[rtc write %02x = %02x]\n", m->rtc_a, m->rtc_di); }
+
+		// the file mounter of the CF (kg_mcu2 SDC_*): mount at 1 ms, then the requests
+		m->img_mounted = 0;
+		m->sdc_done = 0;
+		m->sdc_byte_in_strobe = 0;
+		if (cf && t == 50000) { m->img_mounted = 1; m->img_size = cf_size; }
+		if (cf) {
+			if (sd_state == 0 && (m->sdc_rd & 1)) {
+				sd_lba = m->sdc_sector; m->sdc_busy = 1; sd_state = 1; sd_t = t + 1000; sd_i = 0; sd_reads++;
+				memset(sd_buf, 0, 512);
+				if ((uint64_t)sd_lba * 512 < cf_size) { fseek(cf, (long)sd_lba * 512, SEEK_SET); if (fread(sd_buf, 1, 512, cf) != 512) {} }
+			}
+			else if (sd_state == 0 && (m->sdc_wr & 1)) {
+				sd_lba = m->sdc_sector; m->sdc_busy = 1; sd_state = 2; sd_t = t + 100; sd_i = 0; sd_writes++;
+			}
+			else if (sd_state == 1 && t >= sd_t) {
+				// one byte every 4 clocks
+				if (((t - sd_t) & 3) == 0) {
+					m->sdc_byte_in_strobe = 1; m->sdc_byte_addr = sd_i; m->sdc_byte_in_data = sd_buf[sd_i];
+					if (++sd_i == 512) { sd_state = 3; sd_t = t + 20; }
+				}
+			}
+			else if (sd_state == 2 && t >= sd_t) {
+				// write: address out, the data 3 clocks later (IMG_OUT_LATENCY)
+				static int pend[4] = { -1, -1, -1, -1 };
+				if (pend[3] >= 0) sd_buf[pend[3]] = m->sdc_byte_out_data;
+				pend[3] = pend[2]; pend[2] = pend[1]; pend[1] = pend[0];
+				pend[0] = sd_i < 512 ? sd_i : -1;
+				if (sd_i < 512) { m->sdc_byte_addr = sd_i; sd_i++; }
+				else if (pend[1] < 0 && pend[2] < 0 && pend[3] < 0) {
+					if ((uint64_t)sd_lba * 512 < cf_size) { fseek(cf, (long)sd_lba * 512, SEEK_SET); fwrite(sd_buf, 1, 512, cf); }
+					sd_state = 3; sd_t = t + 20;
+				}
+			}
+			else if (sd_state == 3 && t >= sd_t) { m->sdc_done = 1; m->sdc_busy = 0; sd_state = 0; }
+		}
 
 		// tx_a -> stdout
 		int line = m->tx_a;
@@ -135,7 +201,8 @@ int main(int argc, char **argv) {
 		m->clk = 0;
 		m->eval();
 	}
-	fprintf(stderr, "\n[end %.1f ms, tx_a edges %ld]\n", ms, tx_edges);
+	fprintf(stderr, "\n[end %.1f ms, tx_a edges %ld, cf reads %ld writes %ld]\n", ms, tx_edges, sd_reads, sd_writes);
+	if (cf) fclose(cf);
 	delete m;
 	return 0;
 }
