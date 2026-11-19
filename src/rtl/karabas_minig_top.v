@@ -234,6 +234,7 @@ kg_mcu2 #(
 	.ENABLE_OSD(1),
 	.ENABLE_IMG(1),
 	.IMG_OUT_LATENCY(3), // the address register of kg_l2_img, the buffer RAM of hdf_ata, its output register
+	.ENABLE_RTC(1),      // the DS1302 of the machine on the clock of the board (rtc_mode 1)
 	.ENABLE_AUX(1),      // DEBUG_*: the state of the core (AT+KARABAS=debug:1, kg_board.py log)
 	.ENABLE_FT(1),
 	.ENABLE_SD2(0)
