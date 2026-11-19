@@ -82,6 +82,8 @@ int main(int argc, char **argv) {
 	m->rx_b = 1;
 	m->reset = 1;
 	m->power_reset = 1;
+	m->cf_card = 0;
+	m->ide_din = 0xFF;
 	m->clk = 0;
 
 	// the typed characters: (start clock, byte)

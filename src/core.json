@@ -1,7 +1,7 @@
 {
     "id": "rc2014",
     "name": "RC2014",
-    "build": "26111901",
+    "build": "26111902",
     "visible": true,
     "type": "osd",
     "order": 41,
@@ -24,7 +24,7 @@
     "boards": {
         "minig": {
             "link": 2,
-            "build": "26111901",
+            "build": "26111902",
             "bitstream": "karabas_minig.bin"
         }
     },
@@ -36,6 +36,16 @@
             "extensions": ".img,.hdf",
             "dir": "/rc2014",
             "hotkey": "Menu+F1"
+        },
+        {
+            "type": "S",
+            "name": "CF source",
+            "options": [
+                "Image",
+                "Card"
+            ],
+            "default": 0,
+            "index": 5
         },
         {
             "type": "-"

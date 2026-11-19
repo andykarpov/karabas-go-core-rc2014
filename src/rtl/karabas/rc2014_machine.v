@@ -75,6 +75,17 @@ module rc2014_machine (
 	output wire [7:0] sdc_byte_out_data,
 	output wire cf_led,
 	input wire power_reset,      // the power-on reset (the CF forgets its image only then)
+	input wire cf_card,          // 1: the CF card of the board (its IDE bus) instead of the image
+
+	// the IDE bus of the board (a real CF card in 8-bit mode)
+	output reg [2:0] ide_a = 3'd0,
+	output reg ide_cs0_n = 1'b1,
+	output reg ide_rd_n = 1'b1,
+	output reg ide_wr_n = 1'b1,
+	output reg ide_rst_n = 1'b0,
+	output reg [7:0] ide_dout = 8'd0,
+	output reg ide_oe = 1'b0,
+	input wire [7:0] ide_din,
 
 	// the DS1302 (rc2014_ds1302) on the RTC RAM of kg_mcu2 (rtc_mode 1, DS1307)
 	output wire [7:0] rtc_a,
@@ -229,13 +240,30 @@ wire [7:0] cf_do;
 wire cf_sel;
 rc2014_cf cf (
 	.clk(clk), .reset(power_reset), .bus_reset(reset),
-	.a(rd_end ? io_a : a[7:0]), .io_rd(io_rd), .io_wr(io_wr), .rd_end(rd_end), .wr_end(wr_end),
+	.a(rd_end ? io_a : a[7:0]), .io_rd(io_rd && !cf_card), .io_wr(io_wr && !cf_card), .rd_end(rd_end && !cf_card), .wr_end(wr_end && !cf_card),
 	.din(dout), .dout(cf_do), .sel(cf_sel),
 	.img_mounted(img_mounted), .img_size(img_size), .sdc_rd(sdc_rd), .sdc_wr(sdc_wr), .sdc_sector(sdc_sector),
 	.sdc_busy(sdc_busy), .sdc_done(sdc_done), .sdc_error(sdc_error), .sdc_byte_in_strobe(sdc_byte_in_strobe),
 	.sdc_byte_addr(sdc_byte_addr), .sdc_byte_in_data(sdc_byte_in_data), .sdc_byte_out_data(sdc_byte_out_data),
 	.led(cf_led)
 );
+
+// a real CF card (cf_card): the bus of the board, registered. CS / address follow the port decode
+// (the Z80 holds A over the whole cycle: hold after the strobe), the strobes one clock after the
+// I/O cycle, the write data held two clocks after the write strobe
+reg [1:0] ide_wr_q = 2'b00;
+reg [7:0] ide_q = 8'hFF;
+always @(posedge clk) begin
+	ide_a <= a[2:0];
+	ide_cs0_n <= !(cf_card && a[7:3] == 5'b00010);
+	ide_rd_n <= !(cf_card && io_rd && a[7:3] == 5'b00010);
+	ide_wr_n <= !(cf_card && io_wr && a[7:3] == 5'b00010);
+	ide_wr_q <= { ide_wr_q[0], !ide_wr_n };
+	ide_oe <= cf_card && ((io_wr && a[7:3] == 5'b00010) || !ide_wr_n || ide_wr_q[0]);
+	if (io_wr) ide_dout <= dout;
+	ide_rst_n <= !reset;
+	ide_q <= ide_din;
+end
 
 wire [7:0] rtc_port;
 rc2014_ds1302 ds1302 (
@@ -259,7 +287,7 @@ always @(posedge clk) begin
 		else if (sio_sel)
 			din <= sio_do;
 		else if (cf_sel)
-			din <= cf_do;
+			din <= cf_card ? ide_q : cf_do;
 		else if (a[7:0] == 8'hC0)
 			din <= rtc_port;
 		else

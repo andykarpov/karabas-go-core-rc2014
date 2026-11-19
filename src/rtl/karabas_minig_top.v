@@ -26,9 +26,10 @@
  Audio: the bell of the terminal to the PCM5102 and HDMI (48 kHz).
 
  Soft switches (the index of the item in the osd of core.json):
+   5 CF source (Image / Card: the CF card of the board)
    0 Profile (RomWBW 512K / Classic / Mini)   1 Serial (SIO/2 / ACIA: Classic and RomWBW; Mini is
    always ACIA)   2 CPU (7.37 / 14.75 MHz)   3 Colour (Amber / Green / White)   4 Reset
- A change of Profile or Serial (or the Reset item, or a ROM load) resets the machine.
+ A change of Profile, Serial or CF source (or the Reset item, or a ROM load) resets the machine.
 */
 
 module karabas_minig_top (
@@ -118,12 +119,17 @@ module karabas_minig_top (
 
 // ------------------------------------------------------------------ unused
 
-assign WA = 3'b000;
-assign WCS_N = 2'b11;
-assign WRD_N = 1'b1;
-assign WWR_N = 1'b1;
-assign WRESET_N = 1'b1;
-assign WD = 16'bz;
+// the IDE bus of the board (WA / WCS_N / WRD_N / WWR_N / WRESET_N / WD): a real CF card, 8-bit
+// (rc2014_machine, OSD CF source = Card)
+wire [2:0] ide_a;
+wire ide_cs0_n, ide_rd_n, ide_wr_n, ide_rst_n, ide_oe;
+wire [7:0] ide_dout;
+assign WA = ide_a;
+assign WCS_N = { 1'b1, ide_cs0_n };
+assign WRD_N = ide_rd_n;
+assign WWR_N = ide_wr_n;
+assign WRESET_N = ide_rst_n;
+assign WD = { 8'bz, ide_oe ? ide_dout : 8'bz };
 
 assign ESP32_SPI_CS_N = 1'b1;
 assign UART_RX = 1'bz;
@@ -293,6 +299,7 @@ wire sw_serial = sw[1*8];
 wire sw_turbo = sw[2*8];
 wire [1:0] sw_colour = sw[3*8 +: 2];
 wire sw_reset = sw[4*8];
+wire sw_cf_card = sw[5*8];
 
 wire loading;
 
@@ -300,13 +307,15 @@ wire loading;
 // the Reset item, or a ROM load) resets the machine for about 1.3 ms (16 bits of clk_50)
 reg [1:0] profile = 2'd0;
 reg serial = 1'b0;
+reg cf_card = 1'b0;
 reg [15:0] rst_cnt = 16'd0;
 reg machine_reset = 1'b1;
 always @(posedge clk_50) begin
-	if (areset || loading || sw_reset || sw_profile != profile || sw_serial != serial) begin
+	if (areset || loading || sw_reset || sw_profile != profile || sw_serial != serial || sw_cf_card != cf_card) begin
 		rst_cnt <= 16'd0;
 		profile <= sw_profile == 2'd3 ? 2'd0 : sw_profile;
 		serial <= sw_serial;
+		cf_card <= sw_cf_card;
 	end
 	else if (!rst_cnt[15])
 		rst_cnt <= rst_cnt + 16'd1;
@@ -363,6 +372,15 @@ rc2014_machine machine (
 	.sdc_byte_out_data(hdf_out_data),
 	.cf_led(cf_led),
 	.power_reset(areset),
+	.cf_card(cf_card),
+	.ide_a(ide_a),
+	.ide_cs0_n(ide_cs0_n),
+	.ide_rd_n(ide_rd_n),
+	.ide_wr_n(ide_wr_n),
+	.ide_rst_n(ide_rst_n),
+	.ide_dout(ide_dout),
+	.ide_oe(ide_oe),
+	.ide_din(WD[7:0]),
 	.rtc_a(rtc_a),
 	.rtc_do(rtc_do),
 	.rtc_di(rtc_di),
