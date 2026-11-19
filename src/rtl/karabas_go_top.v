@@ -33,6 +33,9 @@
  the machine instead of the terminal, and the front panel port 00 reads 80 (SW_CRT: RomWBW moves
  its console to the TMS at boot). A change of Console resets the machine.
 
+ Wi-Fi (OSD, Off by default): the ESP module of the board (its AT firmware, 115200, CTS) on the
+ second SIO/2, channel A (84-87: RomWBW SIO2, Fuzix tty3).
+
  USB serial port (kg_mcu2 port 0, the clean CDC "Karabas core serial" of the firmware): channel B
  of the SIO/2, byte for byte (RomWBW unit SIO1: XM, a second console).
 
@@ -45,7 +48,7 @@
  Soft switches (the index of the item in the osd of core.json):
    5 CF source (Image / Card: the CF card of the board)
    0 Profile (RomWBW 512K / Classic / Mini)   1 Serial (SIO/2 / ACIA: Classic and RomWBW; Mini is
-   always ACIA)   6 Console (Terminal / TMS9918)   2 CPU (7.37 / 14.75 MHz)
+   always ACIA)   6 Console (Terminal / TMS9918)   7 Wi-Fi (Off / On)   2 CPU (7.37 / 14.75 MHz)
    3 Colour (Amber / Green / White)   4 Reset
  A change of Profile, Serial, Console or CF source (or the Reset item, or a ROM load) resets the
  machine.
@@ -157,9 +160,15 @@ assign WWR_N = ide_wr_n;
 assign WRESET_N = ide_rst_n;
 assign WD = { 8'bz, ide_oe ? ide_dout : 8'bz };
 
+// the ESP module (UART_*): the second SIO/2 of the machine, channel A, with OSD Wi-Fi = On; UART_CTS
+// low = the module may send (the RTS of the channel). Off: the line is not connected (CTS high, the
+// receiver idle): an AT module echoes all it gets, and Fuzix echoes back on its tty3 (closed or
+// not): the two keep the line busy at full speed and Fuzix crawls
+wire esp_tx, esp_rts;
+wire sw_wifi;        // OSD Wi-Fi (below)
 assign UART_RX = 1'bz;
-assign UART_TX = 1'bz;
-assign UART_CTS = 1'bz;
+assign UART_TX = esp_tx;
+assign UART_CTS = !(esp_rts && sw_wifi);
 
 assign FT_OE_N = 1'b1;     // the FT812 does not drive the video DAC
 assign BEEPER = 1'b0;
@@ -350,6 +359,7 @@ wire [1:0] sw_colour = sw[3*8 +: 2];
 wire sw_reset = sw[4*8];
 wire sw_cf_card = sw[5*8];
 wire sw_tms = sw[6*8];
+assign sw_wifi = sw[7*8];
 
 wire loading;
 
@@ -418,6 +428,9 @@ rc2014_machine machine (
 	.txb_data(ser_tx_data),
 	.txb_wr(ser_tx_wr),
 	.txb_full(port_in_full[0]),
+	.esp_tx(esp_tx),
+	.esp_rx(sw_wifi ? UART_RX : 1'b1),
+	.esp_rts(esp_rts),
 	.fp_sw(tms ? 8'h80 : 8'h00),
 	.joy1(joy1),
 	.joy2(joy2),

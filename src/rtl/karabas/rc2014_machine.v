@@ -39,6 +39,8 @@
    78-7F  Z2 page registers / paging enable (RomWBW)
    80-81  ACIA (serial = 1, Mini always) or
    80-83  SIO/2 (serial = 0): A = the terminal line, B = the USB serial port (a byte stream)
+   84-87  the second SIO/2 (RomWBW SIO2 / SIO3, Fuzix tty7 / tty8): A = the ESP Wi-Fi module of the
+          board (115200, its RTS holds the module), B = no line
    other  read FF (an empty bus)
  The serial card of the terminal line is the ACIA for the Mini profile (its BASIC knows the ACIA
  only), else by `serial` (0 SIO/2, 1 ACIA).
@@ -73,6 +75,11 @@ module rc2014_machine (
 	output wire [7:0] txb_data,
 	output wire txb_wr,
 	input wire txb_full,
+
+	// the ESP module of the board on the second SIO/2, channel A
+	output wire esp_tx,
+	input wire esp_rx,
+	output wire esp_rts,         // 1: the SIO takes characters (RTS of WR5)
 
 	input wire [7:0] fp_sw,      // the front panel switches (port 00)
 	input wire [5:0] joy1,       // the joysticks: 0 up, 1 down, 2 left, 3 right, 4 fire 1, 5 fire 2 (1 = pressed)
@@ -273,7 +280,25 @@ assign rxb_ready = sio_rxb_ready && !use_acia;
 assign txb_wr = sio_txb_wr && !use_acia;
 
 assign tx_a = use_acia ? acia_tx : sio_tx_a;
-assign int_n = (use_acia ? !acia_irq : sio_int_n) && vdp_int_n;
+// the second SIO/2 (84-87): channel A = the ESP module; channel B has no line (its byte stream is
+// tied off: what it sends is dropped, it never receives)
+wire sio2_sel = a[7:2] == 6'b100001;
+wire sio2_rd_sel = io_a[7:2] == 6'b100001;
+wire [7:0] sio2_do, sio2_vector;
+wire sio2_int_n;
+reg [1:0] esp_rx_s = 2'b11;
+always @(posedge clk)
+	esp_rx_s <= { esp_rx_s[0], esp_rx };
+rc2014_sio #(.RXBUF_A(10)) sio2 (
+	.clk(clk), .reset(reset), .ce(ser_ce),
+	.a(rd_end ? io_a[1:0] : a[1:0]), .rd_stb(rd_end && sio2_rd_sel), .wr_stb(wr_stb && sio2_sel),
+	.din(dout), .dout(sio2_do), .int_n(sio2_int_n), .vector(sio2_vector),
+	.tx_a(esp_tx), .rx_a(esp_rx_s[1]),
+	.rxb_data(8'h00), .rxb_wr(1'b0), .rxb_ready(), .txb_data(), .txb_wr(), .txb_full(1'b0),
+	.rts_a(esp_rts), .rts_b(), .hold_a(1'b0)
+);
+
+assign int_n = (use_acia ? !acia_irq : sio_int_n) && sio2_int_n && vdp_int_n;
 
 // ---------------------------------------------------------------- TMS9918A, YM2149, 8242, joysticks
 
@@ -394,6 +419,8 @@ always @(posedge clk) begin
 			din <= acia_do;
 		else if (sio_sel)
 			din <= sio_do;
+		else if (sio2_sel)
+			din <= sio2_do;
 		else if (cf_sel)
 			din <= cf_card ? ide_q : cf_do;
 		else if (a[7:0] == 8'hC0)
@@ -403,6 +430,7 @@ always @(posedge clk) begin
 	end
 end
 
-assign dbg = { profile, use_acia, paging, rom_in, !int_n, !mreq_n, io };
+// { the interrupt of the serial card (ACIA / SIO), of the second SIO, of the TMS, INTA, rom_in, INT, MREQ, IORQ }
+assign dbg = { (use_acia ? acia_irq : !sio_int_n), !sio2_int_n, !vdp_int_n, inta, rom_in, !int_n, !mreq_n, io };
 
 endmodule
