@@ -6,7 +6,8 @@
 ; RCZ80_std (the official RCBus Z80 build) plus the cards of the core that std leaves off:
 ;   TMS9918A at 98 / 99 with the PS/2 keyboard of an 8242 at 60 / 64 (TMSMODE_MSXKBD),
 ;   its frame interrupt as the system timer (IM1),
-;   YM2149 at D8 / D0 (AYMODE_RC2014, 1.7897725 MHz).
+;   YM2149 at D8 / D0 (AYMODE_RC2014, 1.7897725 MHz),
+;   the SN76489 module at FF / FB (SNMODE_RC, 3.579545 MHz).
 ; The console starts on the serial port; the front panel port 00 reads SW_CRT (0x80) when the
 ; OSD item Console = TMS9918, and HBIOS moves the console to the TMS then.
 ;
@@ -23,3 +24,5 @@ TMSMODE		.SET	TMSMODE_MSXKBD	; TMS: STD MSX PORTS + PS2 KEYBOARD (8242 AT 60 / 6
 TMSTIMENABLE	.SET	TRUE		; TMS: ENABLE TIMER INTERRUPTS (REQUIRES IM1)
 AY38910ENABLE	.SET	TRUE		; AY: ENABLE AY-3-8910 / YM2149 SOUND DRIVER
 AYMODE		.SET	AYMODE_RC2014	; AY: D8 REGISTER SELECT, D0 DATA
+SN76489ENABLE	.SET	TRUE		; SN: ENABLE SN76489 SOUND DRIVER
+SNMODE		.SET	SNMODE_RC	; SN: RCBUS SOUND MODULE (FF LEFT, FB RIGHT)

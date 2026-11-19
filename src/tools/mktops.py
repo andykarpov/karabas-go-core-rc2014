@@ -209,8 +209,8 @@ assign MIDI_RESET_N = 1'b0;
 PCM = """kg_pcm5102 #(.DIV_BITS(3)) dac (  // bck 3.1 MHz, 97.7 kHz
 	.clk(clk_50),
 	.reset(areset),
-	.left(audio),
-	.right(audio),
+	.left(audio_l),
+	.right(audio_r),
 	.din(DAC_DAT),
 	.bck(DAC_BCK),
 	.lrck(DAC_WS)
@@ -237,8 +237,8 @@ def mini(s):
     s = sub(s, "assign MCU_IO[5:2] = 4'bzzzz;\n", "assign MCU_IO[3:2] = 2'bzz;\n", "MCU_IO")
     s = sub(s, PCM, "// no I2S DAC on this board: sigma-delta outputs into an RC filter (offset binary from the two's\n"
                "// complement mix of the core)\n"
-               "kg_sigma_delta_dac dac_l (.clk(clk_50), .reset(areset), .din({ ~audio[15], audio[14:0] }), .dout(AUDIO_L));\n"
-               "kg_sigma_delta_dac dac_r (.clk(clk_50), .reset(areset), .din({ ~audio[15], audio[14:0] }), .dout(AUDIO_R));\n",
+               "kg_sigma_delta_dac dac_l (.clk(clk_50), .reset(areset), .din({ ~audio_l[15], audio_l[14:0] }), .dout(AUDIO_L));\n"
+               "kg_sigma_delta_dac dac_r (.clk(clk_50), .reset(areset), .din({ ~audio_r[15], audio_r[14:0] }), .dout(AUDIO_R));\n",
             "audio")
     return s
 

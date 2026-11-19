@@ -15,11 +15,12 @@ Status: built for Karabas Go, Mini and Mini G (`src/rc2014.kg`, one file for all
 | DS1302 real time clock (the clock of the board) | C0 |
 | TMS9918A video (16K VRAM) | 98-99 |
 | YM2149 sound (Ed Brindley module, 1.79 MHz) | D8 / D0 |
+| SN76489 sound module (two chips: left, right; 3.58 MHz) | FF / FB |
 | 8242 PS/2 keyboard controller (the keyboard of the TMS console) | 60 / 64 |
 | Joystick module (two USB / Sega pads) | 01 / 02 |
 | Front panel switches | 00 |
 
-The ROMs are inside `rc2014.kg`: RomWBW 3.6 (our build `RCZ80_kg`: RCZ80_std with the TMS9918, keyboard and YM2149 drivers), the RC2014 factory ROMs with SCM (Classic) and BASIC (Mini).
+The ROMs are inside `rc2014.kg`: RomWBW 3.6 (our build `RCZ80_kg`: RCZ80_std with the TMS9918, keyboard, YM2149 and SN76489 drivers), the RC2014 factory ROMs with SCM (Classic) and BASIC (Mini).
 
 ## Using the core
 
@@ -41,7 +42,7 @@ The files written for this core are GPL-3.0 (see [LICENSE](LICENSE)). Imported f
 
 - T80 (Daniel Wallner, MiSTer fixes): BSD-style;
 - vdp18 (Arnim Läuger): GPL-2.0;
-- JT49 (Jose Tejada): GPL-3.0;
+- JT49, JT89 (Jose Tejada): GPL-3.0;
 - the VT100 terminal pdp2011 / vt10x (Sytse van Slooten), in the version of [tsybulin/karabas-go-core-pdp2026](https://github.com/tsybulin/karabas-go-core-pdp2026): **non-commercial use only**;
 - afifo (Dan Gisselquist): GPL-3.0;
 - RomWBW (Wayne Warthen and contributors): AGPL-3.0, a separate program in the `.kg`;

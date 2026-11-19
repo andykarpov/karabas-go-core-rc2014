@@ -32,6 +32,8 @@
    98, 99 TMS9918A (vdp18; VRAM 16K in block RAM), its frame interrupt on INT_n
    D8, D0 YM2149 (jt49, Ed Brindley module: D8 write register select / read data, D0 write data;
           3.579545 MHz / 2); port A in = the joystick of port B bit 6 (MSX style, for MSX8)
+   FF, FB SN76489 sound module (jt89, RomWBW SNMODE_RC): FF the left chip, FB the right, write
+          only, 3.579545 MHz
    C0     DS1302 RTC (rc2014_ds1302)
    38-3F  pageable ROM toggle (Classic)
    78-7F  Z2 page registers / paging enable (RomWBW)
@@ -85,6 +87,8 @@ module rc2014_machine (
 	output wire vdp_vert_active,
 	output wire [3:0] vdp_col,
 	output wire [9:0] psg_sound, // the YM2149, its three channels mixed
+	output wire signed [10:0] sn_left,  // the SN76489 module: the left chip (FF), the right (FB)
+	output wire signed [10:0] sn_right,
 
 	// the CF module (rc2014_cf: hdf_ata on the file mounter, slot 4 = device 0)
 	input wire [1:0] img_mounted,
@@ -309,6 +313,16 @@ jt49_bus psg (
 );
 
 // only with the TMS console: else Fuzix finds the keyboard and moves its console to the TMS
+// the SN76489 module: two chips, write only (an IN of FF / FB reads the empty bus)
+jt89 sn_l (
+	.rst(reset), .clk(clk), .clk_en(psg_ce),
+	.wr_n(!(io_wr && a[7:0] == 8'hFF)), .cs_n(1'b0), .din(dout), .sound(sn_left), .ready()
+);
+jt89 sn_r (
+	.rst(reset), .clk(clk), .clk_en(psg_ce),
+	.wr_n(!(io_wr && a[7:0] == 8'hFB)), .cs_n(1'b0), .din(dout), .sound(sn_right), .ready()
+);
+
 wire kbd_sel = kbd_en && (a[7:0] == 8'h60 || a[7:0] == 8'h64);
 wire kbd_rd_sel = kbd_en && (io_a == 8'h60 || io_a == 8'h64);
 wire [7:0] kbd_do;

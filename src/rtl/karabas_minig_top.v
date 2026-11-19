@@ -34,7 +34,8 @@
  Joysticks: the two pads of the MCU on the joystick module (ports 01 / 02) and on the YM2149 port A
  (MSX style).
 
- Audio: the YM2149 and the bell of the terminal to the PCM5102 and HDMI (48 kHz).
+ Audio: the YM2149 (both channels), the SN76489 module (its left / right chips) and the bell of the
+ terminal to the PCM5102 and HDMI (48 kHz), stereo.
 
  Soft switches (the index of the item in the osd of core.json):
    5 CF source (Image / Card: the CF card of the board)
@@ -373,6 +374,7 @@ wire [7:0] mach_dbg;
 wire vdp_ce_pix, vdp_hor_active, vdp_vert_active;
 wire [3:0] vdp_col;
 wire [9:0] psg_sound;
+wire signed [10:0] sn_left, sn_right;
 
 rc2014_machine machine (
 	.clk(clk_50),
@@ -405,6 +407,8 @@ rc2014_machine machine (
 	.vdp_vert_active(vdp_vert_active),
 	.vdp_col(vdp_col),
 	.psg_sound(psg_sound),
+	.sn_left(sn_left),
+	.sn_right(sn_right),
 	.img_mounted(sdc_img_mounted[5:4]),
 	.img_size(sdc_img_size),
 	.sdc_rd(hdf_rd),
@@ -538,17 +542,21 @@ kg_l2_osd_overlay osd (
 
 // ------------------------------------------------------------------ audio
 
-// the YM2149 (10 bits unsigned, three channels mixed) around 0 at half of full scale, and the bell
-// of the terminal (a square wave, an eighth of full scale)
-reg [15:0] audio = 16'd0;
-always @(posedge clk_50)
-	audio <= ({ 1'b0, psg_sound, 5'd0 } - 16'h4000) + (vt_bell ? 16'h0800 : 16'hF800);
+// the YM2149 (10 bits unsigned, three channels mixed) around 0 at half of full scale, the SN76489
+// (11 bits signed each, x8: a quarter of full scale) and the bell of the terminal (a square wave,
+// a sixteenth of full scale); the sum stays inside 16 bits
+reg [15:0] audio_l = 16'd0, audio_r = 16'd0;
+wire [15:0] ay_bell = ({ 1'b0, psg_sound, 5'd0 } - 16'h4000) + (vt_bell ? 16'h0800 : 16'hF800);
+always @(posedge clk_50) begin
+	audio_l <= ay_bell + { {2{sn_left[10]}}, sn_left, 3'd0 };
+	audio_r <= ay_bell + { {2{sn_right[10]}}, sn_right, 3'd0 };
+end
 
 kg_pcm5102 #(.DIV_BITS(3)) dac (  // bck 3.1 MHz, 97.7 kHz
 	.clk(clk_50),
 	.reset(areset),
-	.left(audio),
-	.right(audio),
+	.left(audio_l),
+	.right(audio_r),
 	.din(DAC_DAT),
 	.bck(DAC_BCK),
 	.lrck(DAC_WS)
@@ -558,23 +566,26 @@ kg_pcm5102 #(.DIV_BITS(3)) dac (  // bck 3.1 MHz, 97.7 kHz
 // and taken in clk_25 on the toggle (clk_25 is synchronous to clk_50, stable for ~1000 clocks)
 reg [20:0] aud_acc = 21'd0;
 reg aud_tgl = 1'b0;
-reg [15:0] aud_s = 16'd0;
+reg [15:0] aud_sl = 16'd0, aud_sr = 16'd0;
 always @(posedge clk_50) begin
 	aud_acc <= { 1'b0, aud_acc[19:0] } + 21'd1007;
 	if (aud_acc[20]) begin
-		aud_s <= audio;
+		aud_sl <= audio_l;
+		aud_sr <= audio_r;
 		aud_tgl <= ~aud_tgl;
 	end
 end
 
 reg [1:0] aud_tgl_s = 2'b00;
 reg aud_stb = 1'b0;
-reg [23:0] hdmi_a = 24'd0;
+reg [23:0] hdmi_al = 24'd0, hdmi_ar = 24'd0;
 always @(posedge clk_25) begin
 	aud_tgl_s <= { aud_tgl_s[0], aud_tgl };
 	aud_stb <= aud_tgl_s[1] ^ aud_tgl_s[0];
-	if (aud_tgl_s[1] ^ aud_tgl_s[0])
-		hdmi_a <= { aud_s, 8'd0 };
+	if (aud_tgl_s[1] ^ aud_tgl_s[0]) begin
+		hdmi_al <= { aud_sl, 8'd0 };
+		hdmi_ar <= { aud_sr, 8'd0 };
+	end
 end
 
 // ------------------------------------------------------------------ HDMI
@@ -603,8 +614,8 @@ hdmi_tx #(.SAMPLE_FREQ(48000)) hdmi (
 	.hsync(hdmi_hs),
 	.de(hdmi_de),
 	.audio_en(~dvi_only_p),
-	.audio_l(hdmi_a),
-	.audio_r(hdmi_a),
+	.audio_l(hdmi_al),
+	.audio_r(hdmi_ar),
 	.audio_clk(aud_stb),
 	.tx_clk_n(TMDS_N[3]),
 	.tx_clk_p(TMDS_P[3]),

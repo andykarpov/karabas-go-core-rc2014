@@ -15,11 +15,12 @@
 | Часы DS1302 (часы платы) | C0 |
 | Видео TMS9918A (VRAM 16K) | 98-99 |
 | Звук YM2149 (модуль Ed Brindley, 1,79 МГц) | D8 / D0 |
+| Звуковой модуль SN76489 (два чипа: левый, правый; 3,58 МГц) | FF / FB |
 | Контроллер клавиатуры PS/2 8242 (клавиатура консоли на TMS) | 60 / 64 |
 | Модуль джойстиков (два геймпада USB / Sega) | 01 / 02 |
 | Переключатели передней панели | 00 |
 
-ROM лежат внутри `rc2014.kg`: RomWBW 3.6 (наша сборка `RCZ80_kg`: RCZ80_std с драйверами TMS9918, клавиатуры и YM2149), заводские ROM RC2014 с SCM (Classic) и BASIC (Mini).
+ROM лежат внутри `rc2014.kg`: RomWBW 3.6 (наша сборка `RCZ80_kg`: RCZ80_std с драйверами TMS9918, клавиатуры, YM2149 и SN76489), заводские ROM RC2014 с SCM (Classic) и BASIC (Mini).
 
 ## Как пользоваться
 
@@ -41,7 +42,7 @@ ISE 14.7: `cd src; make minig` (или `go`, `mini`). ROM RomWBW: `src/tools/rc2
 
 - T80 (Daniel Wallner, правки MiSTer): BSD-подобная;
 - vdp18 (Arnim Läuger): GPL-2.0;
-- JT49 (Jose Tejada): GPL-3.0;
+- JT49, JT89 (Jose Tejada): GPL-3.0;
 - терминал VT100 pdp2011 / vt10x (Sytse van Slooten) в версии [tsybulin/karabas-go-core-pdp2026](https://github.com/tsybulin/karabas-go-core-pdp2026): **только некоммерческое использование**;
 - afifo (Dan Gisselquist): GPL-3.0;
 - RomWBW (Wayne Warthen и соавторы): AGPL-3.0, отдельная программа в `.kg`;
