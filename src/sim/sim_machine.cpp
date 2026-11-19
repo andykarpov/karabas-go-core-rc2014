@@ -153,6 +153,7 @@ int main(int argc, char **argv) {
 	static uint8_t fb[192][256];
 	int hor_d = 0, vert_d = 0, fx = 0, fy = 0;
 	long psg_changes = 0; int psg_last = -1;
+	long snl_changes = 0, snr_changes = 0; int snl_last = -9999, snr_last = -9999;
 
 	uint64_t end = (uint64_t)(ms * CLK_HZ / 1000.0);
 	uint8_t rdata = 0xFF;
@@ -250,6 +251,8 @@ int main(int argc, char **argv) {
 			hor_d = h; vert_d = v;
 		}
 		if (m->psg_sound != psg_last) { psg_changes++; psg_last = m->psg_sound; }
+		if ((int)m->sn_left != snl_last) { snl_changes++; snl_last = m->sn_left; }
+		if ((int)m->sn_right != snr_last) { snr_changes++; snr_last = m->sn_right; }
 
 		// tx_a -> stdout
 		int line = m->tx_a;
@@ -291,7 +294,7 @@ int main(int argc, char **argv) {
 		m->clk = 0;
 		m->eval();
 	}
-	fprintf(stderr, "\n[end %.1f ms, tx_a edges %ld, cf reads %ld writes %ld, psg changes %ld]\n", ms, tx_edges, sd_reads, sd_writes, psg_changes);
+	fprintf(stderr, "\n[end %.1f ms, tx_a edges %ld, cf reads %ld writes %ld, psg changes %ld, sn changes L %ld R %ld]\n", ms, tx_edges, sd_reads, sd_writes, psg_changes, snl_changes, snr_changes);
 	if (!b_out.empty()) fprintf(stderr, "[B %s]\n", b_out.c_str());
 	if (!ppm.empty()) {
 		static const uint8_t pal[16][3] = { {0,0,0},{0,0,0},{33,200,66},{94,220,120},{84,85,237},{125,118,252},

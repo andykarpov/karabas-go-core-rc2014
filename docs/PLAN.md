@@ -188,6 +188,8 @@ Fuzix платформы `rc2014` (EtchedPixels/FUZIX, `Kernel/platform/platform
 
 Звуковой модуль SN76489 RC2014 (RomWBW `SN76489ENABLE`), в микшер к YM2149.
 
+Сделано (2026-11-19, Mini G 26111906): два `jt89` (из core-sega, Jose Tejada, GPL-3) — левый чип на FF, правый на FB (RomWBW `SNMODE_RC`), только запись, 3,579545 МГц (тот же `psg_ce`, что у YM2149); звук стерео: YM2149 и звонок в оба канала, SN76489 — каждый чип в свой (×8, четверть шкалы). RomWBW RCZ80_kg с `SN76489ENABLE` / `SNMODE_RC`: «Sound 1 SND1: SN76489 3+1 CHANNELS». Симуляция `sim/run_sn.sh` (`sim/tests/sn_test.asm`). Плата: из ROM BASIC `OUT 255,…` / `OUT 251,…` — на HDMI слева 782 Гц (тон 0x08F: 3579545 / 32 / 143), справа 1512 Гц (0x04A), каналы раздельно. 9 911 LUT (65 %), 86 % slices; Mini 9 956 (66 %) / 87 %, Go 9 283 (61 %) / 83 %; тайминги сходятся везде.
+
 ### Ф7 — Wi-Fi через ESP (ветка f7-wifi)
 
 ESP8266 платы как модем AT на последовательном порту машины (как модуль RC2014 Wi-Fi); telnet из CP/M.
