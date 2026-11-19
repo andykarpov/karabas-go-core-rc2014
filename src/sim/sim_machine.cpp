@@ -118,6 +118,7 @@ int main(int argc, char **argv) {
 	m->joy1 = joy1;
 	m->joy2 = joy2;
 	m->kbd_wr = 0;
+	m->kbd_en = tms || !kbd.empty();
 	m->reset = 1;
 	m->power_reset = 1;
 	m->cf_card = 0;
