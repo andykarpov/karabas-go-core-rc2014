@@ -18,9 +18,14 @@ cd "$W"
 [ -p stdin.fifo ] || mkfifo stdin.fifo
 exec 0<>stdin.fifo
 [ -d RomWBW ] || git clone -q --depth 1 --branch v3.6.0 https://github.com/wwarthen/RomWBW.git
+# always from a clean tree: a failed run leaves generated files behind that make takes as done (a
+# missing bin2asm left an empty font6x8u.asm: the TMS had no font)
+git -C RomWBW clean -fdxq
+git -C RomWBW checkout -q .
 cp "$HERE/roms/romwbw/RCZ80_kg.asm" RomWBW/Source/HBIOS/Config/RCZ80_kg.asm
 make -C RomWBW tools
 make -C RomWBW/Source shared bp ROM_PLATFORM=RCZ80 ROM_CONFIG=kg
 make -C RomWBW/Source/HBIOS ROM_PLATFORM=RCZ80 ROM_CONFIG=kg
+[ -s RomWBW/Source/HBIOS/font6x8u.asm ] || { echo "the 6x8 font of the TMS is empty"; exit 1; }
 cp RomWBW/Binary/RCZ80_kg.rom "$HERE/roms/kg/romwbw.rom"
 (cd "$HERE/roms/kg" && sha1sum romwbw.rom)
